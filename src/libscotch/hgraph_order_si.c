@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -44,6 +44,8 @@
 /**                                 to     02 oct 1998     **/
 /**                # Version 4.0  : from : 19 dec 2001     **/
 /**                                 to     11 dec 2002     **/
+/**                # Version 6.0  : from : 17 oct 2012     **/
+/**                                 to   : 04 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -74,23 +76,28 @@
 
 int
 hgraphOrderSi (
-const Hgraph * restrict const   grafptr,
-Order * restrict const          ordeptr,
-const Gnum                      ordenum,          /*+ Zero-based ordering number +*/
-OrderCblk * restrict const      cblkptr)          /*+ Single column-block        +*/
+const Hgraph * restrict const grafptr,
+Order * restrict const        ordeptr,
+const Gnum                    ordenum,            /*+ Zero-based ordering number +*/
+OrderCblk * restrict const    cblkptr)            /*+ Single column-block        +*/
 {
+  Gnum                vnohnnd;
   Gnum                vertnum;
   Gnum                vnumnum;
 
-  if (grafptr->s.vnumtax == NULL) {               /* If graph is original graph */
+  Gnum * restrict const       peritab = ordeptr->peritab;
+  const Gnum * restrict const vnumtax = grafptr->s.vnumtax;
+
+  vnohnnd = grafptr->vnohnnd;
+  if (vnumtax == NULL) {                          /* If graph is original graph */
     for (vertnum = grafptr->s.baseval, vnumnum = ordenum;
-         vertnum < grafptr->vnohnnd; vertnum ++, vnumnum ++)
-      ordeptr->peritab[vnumnum] = vertnum;
+         vertnum < vnohnnd; vertnum ++, vnumnum ++)
+      peritab[vnumnum] = vertnum;
   }
   else {                                          /* Graph is not original graph */
     for (vertnum = grafptr->s.baseval, vnumnum = ordenum;
-         vertnum < grafptr->vnohnnd; vertnum ++, vnumnum ++)
-      ordeptr->peritab[vnumnum] = grafptr->s.vnumtax[vertnum];
+         vertnum < vnohnnd; vertnum ++, vnumnum ++)
+      peritab[vnumnum] = vnumtax[vertnum];
   }
 
   return (0);

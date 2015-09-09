@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_hcub.c                             **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module handles the hypercube       **/
 /**                target architecture.                    **/
@@ -58,6 +59,8 @@
 /**                                 to     10 mar 2005     **/
 /**                # Version 5.1  : from : 21 jan 2008     **/
 /**                                 to     11 aug 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     14 fev 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -302,6 +305,27 @@ ArchHcubDom * restrict const  dom1ptr)
   dom1ptr->dimcur = domptr->dimcur - 1;
   dom0ptr->bitset = domptr->bitset;
   dom1ptr->bitset = domptr->bitset | (1 << dom1ptr->dimcur);
+
+  return (0);
+}
+
+/* This function checks if dom1 is
+** included in dom0.
+** It returns:
+** - 0  : if dom1 is not included in dom0.
+** - 1  : if dom1 is included in dom0.
+** - 2  : on error.
+*/
+
+int
+archHcubDomIncl (
+const ArchHcub * const      archptr,
+const ArchHcubDom * const   dom0ptr,
+const ArchHcubDom * const   dom1ptr)
+{
+  if ((dom0ptr->dimcur >= dom1ptr->dimcur) &&
+      (((dom0ptr->bitset ^ dom1ptr->bitset) >> dom0ptr->dimcur) == 0))
+    return (1);
 
   return (0);
 }

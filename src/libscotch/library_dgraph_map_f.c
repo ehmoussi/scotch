@@ -1,4 +1,4 @@
-/* Copyright 2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2010-2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -40,7 +40,9 @@
 /**                libSCOTCH library.                      **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 28 jun 2008     **/
-/**                                 to     25 jul 2010     **/
+/**                                 to     31 aug 2011     **/
+/**                # Version 6.0  : from : 29 nov 2012     **/
+/**                                 to     29 nov 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -52,7 +54,7 @@
 
 #include "module.h"
 #include "common.h"
-#include "scotch.h"
+#include "ptscotch.h"
 
 /**************************************/
 /*                                    */
@@ -209,9 +211,27 @@ SCOTCH_Strat * const        stratptr,                     \
 const SCOTCH_Num * const    flagval,                      \
 const SCOTCH_Num * const    procnbr,                      \
 const SCOTCH_Num * const    partnbr,                      \
-const double * const        balrat,                       \
+const double * const        kbalval,                      \
 int * const                 revaptr),                     \
-(stratptr, flagval, procnbr, partnbr, balrat, revaptr))
+(stratptr, flagval, procnbr, partnbr, kbalval, revaptr))
 {
-  *revaptr = SCOTCH_stratDgraphMapBuild (stratptr, *flagval, *procnbr, *partnbr, *balrat);
+  *revaptr = SCOTCH_stratDgraphMapBuild (stratptr, *flagval, *procnbr, *partnbr, *kbalval);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                                         \
+SCOTCHFSTRATDGRAPHCLUSTERBUILD, scotchfstratdgraphclusterbuild, ( \
+SCOTCH_Strat * const        stratptr,                             \
+const SCOTCH_Num * const    flagval,                              \
+const SCOTCH_Num * const    procnbr,                              \
+const SCOTCH_Num * const    pwgtval,                              \
+const double * const        densval,                              \
+const double * const        bbalval,                              \
+int * const                 revaptr),                             \
+(stratptr, flagval, procnbr, pwgtval, densval, bbalval, revaptr))
+{
+  *revaptr = SCOTCH_stratDgraphClusterBuild (stratptr, *flagval, *procnbr, *pwgtval, *densval, *bbalval);
 }

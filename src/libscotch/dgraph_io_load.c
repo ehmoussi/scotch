@@ -1,4 +1,4 @@
-/* Copyright 2007-2009 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2009,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : dgraph_io_load.c                        **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declarations   **/
 /**                for the input/output routines for       **/
@@ -43,6 +44,8 @@
 /**                                 to   : 24 mar 2008     **/
 /**                # Version  5.1 : from : 23 jun 2008     **/
 /**                                 to   : 27 jan 2009     **/
+/**                # Version  6.0 : from : 25 aug 2012     **/
+/**                                 to   : 18 nov 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -149,7 +152,9 @@ const DgraphFlag            flagval)              /* Graph loading flags        
       return (dgraphLoadMulti (grafptr, stream, baseval, flagval)); /* Read multi-centralized graph */
   }
 
-  errorPrint ("dgraphLoad: invalid number of input streams");
+  errorPrint ((reduglbtab[7] == 0)
+              ? "dgraphLoad: no input stream provided"
+              : "dgraphLoad: invalid number of input streams");
   return     (1);
 }
 
@@ -419,14 +424,14 @@ const int                   protnum)              /* Root process number        
           }
           requnbr = 1;
           if (veloredtax != NULL) {
-            if (MPI_Isend (veloredtax + baseval, vertlocnbr, GNUM_MPI,
+            if (MPI_Isend (veloredtax + baseval, vertrednnd - baseval, GNUM_MPI,
                            procnum, TAGVELOLOCTAB, grafptr->proccomm, &requtab[requnbr ++]) != MPI_SUCCESS) {
               errorPrint ("dgraphLoadCent: communication error (6)");
               return     (1);
             }
           }
           if (vlblredtax != NULL) {
-            if (MPI_Isend (vlblredtax + baseval, vertlocnbr, GNUM_MPI,
+            if (MPI_Isend (vlblredtax + baseval, vertrednnd - baseval, GNUM_MPI,
                            procnum, TAGVLBLLOCTAB, grafptr->proccomm, &requtab[requnbr ++]) != MPI_SUCCESS) {
               errorPrint ("dgraphLoadCent: communication error (7)");
               return     (1);

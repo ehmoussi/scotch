@@ -1,4 +1,4 @@
-/* Copyright 2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2010,2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -43,6 +43,8 @@
 /**                                 to     11 nov 2008     **/
 /**                # Version 5.1  : from : 29 mar 2010     **/
 /**                                 to     14 aug 2010     **/
+/**                # Version 6.0  : from : 08 jan 2012     **/
+/**                                 to     28 sep 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -59,7 +61,7 @@
 #include "dorder.h"
 #include "hdgraph.h"
 #include "hdgraph_order_st.h"
-#include "scotch.h"
+#include "ptscotch.h"
 
 /************************************/
 /*                                  */
@@ -178,7 +180,7 @@ SCOTCH_Strat * const        stratptr)             /*+ Ordering strategy         
 #endif /* SCOTCH_DEBUG_DGRAPH2 */
 
   if (*((Strat **) stratptr) == NULL)             /* Set default ordering strategy if necessary */
-    SCOTCH_stratDgraphOrderBuild (stratptr, SCOTCH_STRATQUALITY, srcgrafptr->procglbnbr, 0.2);
+    SCOTCH_stratDgraphOrderBuild (stratptr, SCOTCH_STRATQUALITY, srcgrafptr->procglbnbr, 0, 0.2);
 
   ordstratptr = *((Strat **) stratptr);
   if (ordstratptr->tabl != &hdgraphorderststratab) {
@@ -186,9 +188,10 @@ SCOTCH_Strat * const        stratptr)             /*+ Ordering strategy         
     return     (1);
   }
 
-  srcgrafdat.s            = *srcgrafptr;          /* Copy non-halo graph data    */
-  srcgrafdat.s.edloloctax = NULL;                 /* Never mind about edge loads */
-  srcgrafdat.vhallocnbr   = 0;                    /* No halo on graph            */
+  srcgrafdat.s            = *srcgrafptr;          /* Copy non-halo graph data       */
+  srcgrafdat.s.edloloctax = NULL;                 /* Never mind about edge loads    */
+  srcgrafdat.s.vlblloctax = NULL;                 /* Do not propagate vertex labels */
+  srcgrafdat.vhallocnbr   = 0;                    /* No halo on graph               */
   srcgrafdat.vhndloctax   = srcgrafdat.s.vendloctax;
   srcgrafdat.ehallocnbr   = 0;
   srcgrafdat.levlnum      = 0;
@@ -197,6 +200,8 @@ SCOTCH_Strat * const        stratptr)             /*+ Ordering strategy         
 
   srclistnbr = (Gnum)   listnbr;                  /* Build vertex list */
   srclisttab = (Gnum *) listtab;
+
+  intRandInit ();                                 /* Check that random number generator is initialized */
 
 /* TODO: Take list into account */
   dorderFree (srcordeptr);                        /* Clean all existing ordering data */
@@ -247,23 +252,64 @@ const char * const          string)
 
 int
 SCOTCH_stratDgraphOrderBuild (
-SCOTCH_Strat * const        stratptr,             /*+ Strategy to create              +*/
-const SCOTCH_Num            flagval,              /*+ Desired characteristics         +*/
-const SCOTCH_Num            procnbr,              /*+ Number of processes for running +*/
-const double                balrat)               /*+ Desired imbalance ratio         +*/
+SCOTCH_Strat * const        stratptr,             /*+ Strategy to create                 +*/
+const SCOTCH_Num            flagval,              /*+ Desired characteristics            +*/
+const SCOTCH_Num            procnbr,              /*+ Number of processes for running    +*/
+const SCOTCH_Num            levlnbr,              /*+ Number of nested dissection levels +*/
+const double                balrat)               /*+ Desired imbalance ratio            +*/
 {
   char                bufftab[8192];              /* Should be enough */
   char                bbaltab[32];
+  char                levltab[32];
   char                verttab[32];
   Gnum                vertnbr;
+  char *              tstpptr;
+  char *              tstsptr;
+  char *              oleaptr;
+  char *              osepptr;
 
   vertnbr = MAX (2000 * procnbr, 10000);
   vertnbr = MIN (vertnbr, 1000000);
-  sprintf (verttab, GNUMSTRING, vertnbr);
-
-  strcpy (bufftab, "n{sep=m{vert=<VERT>,asc=b{width=3,strat=q{strat=f}},low=q{strat=h},vert=100,dvert=10,dlevl=0,proc=1,seq=q{strat=m{type=h,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=h{pass=10}f{bal=<BBAL>}}}}},ole=q{strat=n{sep=/(vert>120)?m{type=h,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=h{pass=10}f{bal=<BBAL>}}};,ole=f{cmin=15,cmax=100000,frat=0.0},ose=g}},ose=s,osq=n{sep=/(vert>120)?m{type=h,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=h{pass=10}f{bal=<BBAL>}}};,ole=f{cmin=15,cmax=100000,frat=0.0},ose=g}}");
 
   sprintf (bbaltab, "%lf", balrat);
+  sprintf (levltab, GNUMSTRING, levlnbr);
+  sprintf (verttab, GNUMSTRING, vertnbr);
+
+  strcpy (bufftab, "n{sep=/(<TSTP>)?m{vert=<VERT>,asc=b{width=3,strat=q{strat=f}},low=q{strat=h},seq=q{strat=m{vert=120,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=h{pass=10}f{bal=<BBAL>}}}}};,ole=q{strat=n{sep=/(<TSTS>)?m{vert=120,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=h{pass=10}f{bal=<BBAL>}}};,ole=<OLEA>,ose=<OSEP>}},ose=s,osq=n{sep=/(<TSTS>)?m{vert=120,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=h{pass=10}f{bal=<BBAL>}}};,ole=<OLEA>,ose=<OSEP>}}");
+
+  switch (flagval & (SCOTCH_STRATLEVELMIN | SCOTCH_STRATLEVELMAX)) {
+    case SCOTCH_STRATLEVELMIN :
+      tstpptr = "0=0";
+      tstsptr = "(levl<<LEVL>)|(vert>240)";
+      break;
+    case SCOTCH_STRATLEVELMAX :
+      tstpptr = "(levl<<LEVL>)";
+      tstsptr = "(levl<<LEVL>)&(vert>240)";
+      break;
+    case (SCOTCH_STRATLEVELMIN | SCOTCH_STRATLEVELMAX) :
+      tstpptr =
+      tstsptr = "levl<<LEVL>";
+      oleaptr = "s";                              /* Simple ordering for leaves */
+      break;
+    default :
+      tstpptr = "0=0";
+      tstsptr = "vert>240";
+      break;
+  }
+
+  oleaptr = ((flagval & SCOTCH_STRATLEAFSIMPLE) != 0)
+            ? "s"
+            : "f{cmin=15,cmax=100000,frat=0.0}";
+
+  osepptr = ((flagval & SCOTCH_STRATSEPASIMPLE) != 0)
+            ? "s"
+            : "g";
+
+  stringSubst (bufftab, "<TSTP>", tstpptr);
+  stringSubst (bufftab, "<TSTS>", tstsptr);
+  stringSubst (bufftab, "<LEVL>", levltab);
+  stringSubst (bufftab, "<OLEA>", oleaptr);
+  stringSubst (bufftab, "<OSEP>", osepptr);
   stringSubst (bufftab, "<BBAL>", bbaltab);
   stringSubst (bufftab, "<VERT>", verttab);
 

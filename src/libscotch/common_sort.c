@@ -1,10 +1,12 @@
 /* This file is part of the Scotch distribution. It does
-** not have the stardard Scotch header with the INRIA
+** not have the standard Scotch header with the INRIA & co.
 ** copyright notice because it is a very slight adaptation
 ** of the qsort routine of glibc 2.4, taylored to match
 ** Scotch needs. As Scotch is distributed according to the
 ** CeCILL-C license, which is LGPL-compatible, no further
-** notices are required.
+** notices are required. Hence, this "common_sort.c" file
+** is distributed according the terms of the LGPL, see
+** copyright notice just below.
 */
 
 /* Copyright (C) 1991,1992,1996,1997,1999,2004 Free Software Foundation, Inc.
@@ -80,12 +82,16 @@ typedef struct
       stack size is needed (actually O(1) in this case)!  */
 
 /* To be defined :
+** INTSORTQUAL : whether the function is "static" or not
 ** INTSORTNAME : Name of function
 ** INTSORTSIZE : Size of elements to sort
 ** INTSORTSWAP : Swapping macro
 ** INTSORTCMP  : Comparison function
 */
 
+#ifdef INTSORTQUAL
+INTSORTQUAL
+#endif /* INTSORTQUAL */
 void
 INTSORTNAME (
 void * const                pbase,                /*+ Array to sort             +*/

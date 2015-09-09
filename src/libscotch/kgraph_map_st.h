@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2010-2012 IPB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : kgraph_map_st.h                         **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module contains the data declara-  **/
 /**                tions for the strategy and method       **/
@@ -48,6 +49,8 @@
 /**                                 to     12 jan 2004     **/
 /**                # Version 5.1  : from : 13 jul 2010     **/
 /**                                 to     13 jul 2010     **/
+/**                # Version 6.0  : from : 08 jun 2011     **/
+/**                                 to     16 jan 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -58,7 +61,12 @@
 /*+ Method types. +*/
 
 typedef enum KgraphMapStMethodType_ {
-  KGRAPHMAPSTMETHML = 0,                          /*+ Multi-level                   +*/
+  KGRAPHMAPSTMETHBD = 0,                          /*+ Band (strategy)               +*/
+  KGRAPHMAPSTMETHCP,                              /*+ Old mapping copy              +*/
+  KGRAPHMAPSTMETHDF,                              /*+ Diffusion                     +*/
+  KGRAPHMAPSTMETHEX,                              /*+ Exactifier                    +*/
+  KGRAPHMAPSTMETHFM,                              /*+ Fiduccia-Mattheyses           +*/
+  KGRAPHMAPSTMETHML,                              /*+ Multi-level (strategy)        +*/
   KGRAPHMAPSTMETHRB,                              /*+ Dual Recursive Bipartitioning +*/
   KGRAPHMAPSTMETHNBR                              /*+ Number of methods             +*/
 } KgraphMapStMethodType;

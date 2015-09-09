@@ -1,4 +1,4 @@
-/* Copyright 2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : kdgraph_map_rb.c                        **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                Francois PELLEGRINI                     **/
 /**                                                        **/
 /**   FUNCTION   : This module performs the Dual Recursive **/
@@ -42,6 +42,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 16 apr 2008     **/
 /**                                 to     01 jul 2008     **/
+/**                # Version 6.0  : from : 03 oct 2012     **/
+/**                                 to     10 oct 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -84,19 +86,15 @@ const Anum                domnnbr)
     errorPrint  ("kdgraphMapRbAdd2: out of memory (1)");
     return      (NULL);
   }
-  fragptr->vnumtab = NULL;
-  fragptr->parttab = NULL;
-  fragptr->domntab = NULL;
   if (((fragptr->vnumtab = memAlloc (vertnbr * sizeof (Gnum)))    == NULL) ||
       ((fragptr->parttab = memAlloc (vertnbr * sizeof (Anum)))    == NULL) ||
       ((fragptr->domntab = memAlloc (domnnbr * sizeof (ArchDom))) == NULL)) {
     errorPrint ("kdgraphMapRbAdd2: out of memory (2)");
-    if (fragptr->domntab != NULL)
-      memFree (fragptr->domntab);
-    if (fragptr->parttab != NULL)
-      memFree (fragptr->parttab);
-    if (fragptr->vnumtab != NULL)
+    if (fragptr->vnumtab != NULL) {
+      if (fragptr->parttab != NULL)
+        memFree (fragptr->parttab);
       memFree (fragptr->vnumtab);
+    }
     return (NULL);
   }
   fragptr->vertnbr = vertnbr;
@@ -113,6 +111,7 @@ const ArchDom * restrict const    domnptr,        /*+ Pointer to both subdomains
 const GraphPart * restrict const  parttab)        /*+ Bipartition graph part array +*/
 {
   DmappingFrag * restrict fragptr;
+  Anum * restrict         fragparttab;
   Gnum                    vertlocnum;
 
   if ((fragptr = kdgraphMapRbAdd2 (grafptr->vertlocnbr, 2)) == NULL) /* Two domains */
@@ -123,18 +122,21 @@ const GraphPart * restrict const  parttab)        /*+ Bipartition graph part arr
   if (parttab == NULL)                            /* If bipartition part array not set */
     memSet (fragptr->parttab, 0, grafptr->vertlocnbr * sizeof (Anum));
   else {
+    fragparttab = fragptr->parttab;
     for (vertlocnum = 0; vertlocnum < grafptr->vertlocnbr; vertlocnum ++)
-      fragptr->parttab[vertlocnum] = (Anum) parttab[vertlocnum];
+      fragparttab[vertlocnum] = (Anum) parttab[vertlocnum];
   }
 
   if (grafptr->vnumloctax != NULL)
     memCpy (fragptr->vnumtab, grafptr->vnumloctax + grafptr->baseval, fragptr->vertnbr * sizeof (Gnum));
   else {
+    Gnum * restrict     fragvnumtab;
     Gnum                vertlocadj;
     Gnum                vertlocnum;
 
+    fragvnumtab = fragptr->vnumtab;
     for (vertlocnum = 0, vertlocadj = grafptr->procvrttab[grafptr->proclocnum]; vertlocnum < grafptr->vertlocnbr; vertlocnum ++)
-      fragptr->vnumtab[vertlocnum] = vertlocadj + vertlocnum;
+      fragvnumtab[vertlocnum] = vertlocadj + vertlocnum;
   }
 
   dmapAdd (mappptr, fragptr);
@@ -158,11 +160,13 @@ const ArchDom * restrict const  domnptr)
   if (grafptr->vnumloctax != NULL)
     memCpy (fragptr->vnumtab, grafptr->vnumloctax + grafptr->baseval, fragptr->vertnbr * sizeof (Gnum));
   else {
+    Gnum * restrict     fragvnumtab;
     Gnum                vertlocadj;
     Gnum                vertlocnum;
 
+    fragvnumtab = fragptr->vnumtab;
     for (vertlocnum = 0, vertlocadj = grafptr->procvrttab[grafptr->proclocnum]; vertlocnum < grafptr->vertlocnbr; vertlocnum ++)
-      fragptr->vnumtab[vertlocnum] = vertlocadj + vertlocnum;
+      fragvnumtab[vertlocnum] = vertlocadj + vertlocnum;
   }
 
   dmapAdd (mappptr, fragptr);
@@ -180,6 +184,7 @@ const GraphPart * const         parttab,
 const GraphPart                 partval)
 {
   DmappingFrag * restrict fragptr;
+  Gnum * restrict         fragvnumtab;
   Gnum                    vertlocnum;
   Gnum                    partlocnum;
 
@@ -189,8 +194,10 @@ const GraphPart                 partval)
   fragptr->domntab[0] = *domnptr;                 /* Only one domain for this mapping fragment */
   memSet (fragptr->parttab, 0, fragptr->vertnbr * sizeof (Anum)); /* All vertices mapped to it */
 
+  fragvnumtab = fragptr->vnumtab;
+
   if (grafptr->vnumloctax != NULL) {
-    const Gnum * restrict   vnumtab;
+    const Gnum * restrict vnumtab;
 
     for (vertlocnum = partlocnum = 0, vnumtab = grafptr->vnumloctax + grafptr->baseval; vertlocnum < grafptr->vertlocnbr; vertlocnum ++) {
       if (parttab[vertlocnum] == partval) {
@@ -200,7 +207,7 @@ const GraphPart                 partval)
           return     (1);
         }
 #endif /* SCOTCH_DEBUG_KDMAP2 */
-        fragptr->vnumtab[partlocnum ++] = vnumtab[vertlocnum];
+        fragvnumtab[partlocnum ++] = vnumtab[vertlocnum];
       }
     }
   }
@@ -216,7 +223,7 @@ const GraphPart                 partval)
           return     (1);
         }
 #endif /* SCOTCH_DEBUG_KDMAP2 */
-        fragptr->vnumtab[partlocnum ++] = vertlocadj + vertlocnum;
+        fragvnumtab[partlocnum ++] = vertlocadj + vertlocnum;
       }
     }
   }
@@ -251,5 +258,5 @@ const KdgraphMapRbParam * restrict const paraptr)
 
   return (archPart (&mappptr->mappptr->archdat)   /* If target architecture is some flavor of complete graph */
           ? kdgraphMapRbPart (grafptr, mappptr, paraptr)
-          : kdgraphMapRbMap  (grafptr, mappptr, paraptr)); /* TODO: static mapping */
+          : kdgraphMapRbMap  (grafptr, mappptr, paraptr));
 }

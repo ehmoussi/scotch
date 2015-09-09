@@ -72,7 +72,7 @@ typedef struct GraphMapViewQueue_ {
 #define static
 #endif
 
-static Gnum                 graphMapView2       (const Graph * const, const Anum * const, const Anum);
+static Gnum                 graphMapView3       (const Graph * const, const Anum * const, const Anum);
 
 #undef static
 

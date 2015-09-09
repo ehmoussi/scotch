@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,7 +34,7 @@
 /**   NAME       : arch_build.c                            **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
-/**                Sebastien FOURESTIER                    **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module builds a decomposition-     **/
 /**                based architecture from a source graph. **/
@@ -50,7 +50,9 @@
 /**                # Version 5.0  : from : 10 sep 2007     **/
 /**                                 to     03 apr 2008     **/
 /**                # Version 5.1  : from : 28 sep 2008     **/
-/**                                 to     01 jul 2010     **/
+/**                                 to     28 jun 2011     **/
+/**                # Version 6.0  : from : 28 jun 2011     **/
+/**                                 to     05 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -121,29 +123,35 @@ const Graph * const         tgtgrafptr,           /*+ Source graph modeling the 
 const VertList * const      tgtlistptr,           /*+ Subset of source graph vertices        +*/
 const Strat * const         mapstrat)             /*+ Bipartitioning strategy                +*/
 {
-  Gnum * restrict               mapparttax;       /* Based access to mapping part array       */
-  ArchDom                       domsub0;          /* Temporary space for subdomain 0          */
-  Gnum                          termdomnbr;       /* Number of terminal domains               */
-  Gnum                          termdommax;       /* Maximum terminal number                  */
-  ArchDecoTermVert * restrict   termverttab;      /* Terminal vertex table                    */
-  Anum * restrict               termdisttab;      /* Vertex distance table                    */
-  ArchBuildDistElem * restrict  disttab;          /* Distance table                           */
-  ArchBuildQueuElem * restrict  queutab;          /* Distance queue table                     */
-  Gnum                          queuhead;         /* Head-of-queue index                      */
-  Gnum                          queutail;         /* Tail-of-queue index                      */
-  Mapping                       mapdat;           /* Partial and final mapping data           */
-  ArchBuildJob * restrict       jobtab;           /* Job array                                */
-  ArchBuildJob *                joblink;          /* Linked list of jobs to process           */
-  ArchBuildJob *                joborgptr;        /* Pointer to original job and first subjob */
-  ArchBuildJob *                jobsubptr;        /* Pointer to second subjob                 */
-  Bgraph                        actgrafdat;       /* Active graph for bipartitioning          */
-  Gnum                          invedlosiz;       /* Size of inversed edge load array         */
-  Gnum * restrict               invedlotax;       /* Inversed edge load array for cutting     */
-  Gnum * restrict               actfrontab;       /* Frontier array for all bipartitionings   */
-  GraphPart * restrict          actparttax;       /* Part array for all bipartitionings       */
-  GraphPart                     actpartval;       /* Part value to put to subjob              */
-  Gnum                          actpartnbr;       /* Size of part value to put to subjob      */
-  Gnum                          i, j;
+  Gnum * restrict               mapparttax;       /* Based access to mapping part array             */
+  Arch                          archdat;          /* Variable-sized architecture for bipartitioning */
+  ArchDom                       domsub0;          /* Temporary space for subdomain 0                */
+  Gnum                          termdomnbr;       /* Number of terminal domains                     */
+  Gnum                          termdommax;       /* Maximum terminal number                        */
+  ArchDecoTermVert * restrict   termverttab;      /* Terminal vertex table                          */
+  Anum * restrict               termdisttab;      /* Vertex distance table                          */
+  ArchBuildDistElem * restrict  disttax;          /* Distance table                                 */
+  ArchBuildQueuElem * restrict  queutab;          /* Distance queue table                           */
+  Gnum                          queuhead;         /* Head-of-queue index                            */
+  Gnum                          queutail;         /* Tail-of-queue index                            */
+  Mapping                       mappdat;          /* Partial and final mapping data                 */
+  ArchBuildJob * restrict       jobtab;           /* Job array                                      */
+  ArchBuildJob *                joblink;          /* Linked list of jobs to process                 */
+  ArchBuildJob *                joborgptr;        /* Pointer to original job and first subjob       */
+  ArchBuildJob *                jobsubptr;        /* Pointer to second subjob                       */
+  Bgraph                        actgrafdat;       /* Active graph for bipartitioning                */
+  Gnum                          invedlosiz;       /* Size of inversed edge load array               */
+  Gnum * restrict               invedlotax;       /* Inversed edge load array for cutting           */
+  Gnum * restrict               actfrontab;       /* Frontier array for all bipartitionings         */
+  GraphPart * restrict          actparttax;       /* Part array for all bipartitionings             */
+  GraphPart                     actpartval;       /* Part value to put to subjob                    */
+  Gnum                          actpartnbr;       /* Size of part value to put to subjob            */
+  Gnum                          termdomnum;
+
+  const Gnum * restrict const tgtverttax = tgtgrafptr->verttax;
+  const Gnum * restrict const tgtvendtax = tgtgrafptr->vendtax;
+  const Gnum * restrict const tgtedgetax = tgtgrafptr->edgetax;
+  const Gnum * restrict const tgtedlotax = tgtgrafptr->edlotax;
 
   archInit (tgtarchptr);                          /* Initialize architecture body */
   tgtarchptr->class = archClass ("deco");         /* Set architecture class       */
@@ -152,35 +160,36 @@ const Strat * const         mapstrat)             /*+ Bipartitioning strategy   
   if (termdomnbr == 0)                            /* If nothing to do */
     return (0);
 
-  invedlosiz = (tgtgrafptr->edlotax != NULL) ? tgtgrafptr->edgenbr : 0;
+  intRandInit ();                                 /* Initialize random generator */
+
+  invedlosiz = (tgtedlotax != NULL) ? tgtgrafptr->edgenbr : 0;
   if ((memAllocGroup ((void **) (void *)
                       &jobtab,     (size_t) (termdomnbr * sizeof (ArchBuildJob)),
                       &actfrontab, (size_t) (termdomnbr * sizeof (Gnum)),
                       &actparttax, (size_t) (termdomnbr * sizeof (GraphPart)),
                       &invedlotax, (size_t) (invedlosiz * sizeof (Gnum)), NULL) == NULL) ||
-      ((mapdat.parttax = memAlloc (termdomnbr * sizeof (ArchDomNum))) == NULL) ||
-      ((mapdat.domntab = memAlloc (termdomnbr * sizeof (ArchDom)))    == NULL)) {
+      ((mappdat.parttax = memAlloc (tgtgrafptr->vertnbr * sizeof (ArchDomNum))) == NULL) || /* Final mapping array is for all graph vertices */
+      ((mappdat.domntab = memAlloc (termdomnbr * sizeof (ArchDom)))             == NULL)) {
     errorPrint ("archBuild: out of memory (1)");
     if (jobtab != NULL) {
       memFree (jobtab);
-      if (mapdat.parttax == NULL)
-        memFree (mapdat.parttax);
+      if (mappdat.parttax != NULL)
+        memFree (mappdat.parttax);
     }
     return (1);
   }
-  memSet (mapdat.parttax, 0, termdomnbr * sizeof (ArchDomNum));
-  actparttax     -= tgtgrafptr->baseval;
-  mapdat.baseval  = tgtgrafptr->baseval;
-  mapdat.vertnbr  = termdomnbr;
-  mapdat.parttax -= tgtgrafptr->baseval;
-  mapdat.domnmax  = termdomnbr;
+  memSet (mappdat.parttax, 0, termdomnbr * sizeof (ArchDomNum));
+  actparttax      -= tgtgrafptr->baseval;
+  mappdat.flagval  = MAPPINGFREEPART | MAPPINGFREEDOMN;
+  mappdat.grafptr  = tgtgrafptr;
+  mappdat.archptr  = &archdat;
+  mappdat.parttax -= tgtgrafptr->baseval;
+  mappdat.domnmax  = termdomnbr;
 
-  intRandInit ();                                 /* Initialize random generator */
-
-  archInit (&mapdat.archdat);                     /* Initialize terminal architecture */
-  mapdat.archdat.class = archClass ("varcmplt");  /* Set architecture class           */
-  archDomFrst (&mapdat.archdat, &mapdat.domntab[0]); /* Get initial domain            */
-  mapdat.domnnbr = 1;
+  archInit (&archdat);                            /* Initialize terminal architecture */
+  archdat.class = archClass ("varcmplt");         /* Set architecture class           */
+  archDomFrst (&archdat, &mappdat.domntab[0]);    /* Get initial domain               */
+  mappdat.domnnbr = 1;
 
   jobtab[0].domnum = 0;                           /* All vertices mapped to first domain  */
   if ((tgtlistptr != NULL) && (tgtlistptr->vnumtab != NULL)) /* If vertex list given      */
@@ -188,58 +197,73 @@ const Strat * const         mapstrat)             /*+ Bipartitioning strategy   
   else {                                          /* If no vertex list given              */
     memCpy (&jobtab[0].grafdat, tgtgrafptr, sizeof (Graph)); /* Job takes whole graph     */
     jobtab[0].grafdat.flagval &= ~GRAPHFREETABS;  /* Graph is a clone                     */
+    jobtab[0].grafdat.vnumtax  = NULL;            /* Assume we have no vertex index array */
   }
 
-  if (tgtgrafptr->edlotax != NULL) {              /* If architecture graph has edge loads */
-    const Gnum * restrict indedlotax;
+  if (tgtedlotax != NULL) {                       /* If architecture graph has edge loads */
+    Gnum                  vertnum;
+    Gnum                  vertnnd;
     Gnum                  edlomin;
     Gnum                  edlomax;
-    Gnum                  edgennd;
-    Gnum                  edgenum;
     float                 prodval;
 
-    invedlotax -= tgtgrafptr->baseval;            /* Base inversed edge load array                 */
-    indedlotax  = jobtab[0].grafdat.edlotax;      /* Point to possibly induced original edge array */
+    const Gnum * restrict const indverttax = jobtab[0].grafdat.verttax;
+    const Gnum * restrict const indvendtax = jobtab[0].grafdat.vendtax;
+    const Gnum * restrict const indedlotax = jobtab[0].grafdat.edlotax; /* Point to possibly induced original edge array */
+
+    invedlotax -= tgtgrafptr->baseval;            /* Base inversed edge load array */
 
     edlomin = GNUMMAX;
     edlomax = 1;
-    for (edgenum = tgtgrafptr->baseval, edgennd = edgenum + jobtab[0].grafdat.edgenbr; /* Get extremal values */
-         edgenum < edgennd; edgenum ++) {
-      Gnum                edloval;
+    for (vertnum = jobtab[0].grafdat.baseval, vertnnd = jobtab[0].grafdat.vertnnd; /* Handle non-compact graphs as well as compact graphs */
+         vertnum < vertnnd; vertnum ++) {
+      Gnum                  edgenum;
+      Gnum                  edgennd;
 
-      edloval = indedlotax[edgenum];
-      if (edloval < edlomin)
-        edlomin = edloval;
-      if (edloval > edlomax)
-        edlomax = edloval;
+      for (edgenum = indverttax[vertnum], edgennd = indvendtax[vertnum];
+           edgenum < edgennd; edgenum ++) {
+        Gnum                edloval;
+
+        edloval = indedlotax[edgenum];
+        if (edloval < edlomin)
+          edlomin = edloval;
+        if (edloval > edlomax)
+          edlomax = edloval;
+      }
     }
 
     prodval = (float) edlomin * (float) edlomax;
 
-    for (edgenum = tgtgrafptr->baseval; edgenum < edgennd; edgenum ++) {
-      Gnum                edloval;
+    for (vertnum = jobtab[0].grafdat.baseval;
+         vertnum < vertnnd; vertnum ++) {
+      Gnum                  edgenum;
+      Gnum                  edgennd;
 
-      edloval = indedlotax[edgenum];
-      if (edloval == edlomin)
-        edloval = edlomax;
-      else if (edloval == edlomax)
-        edloval = edlomin;
-      else {
-        edloval = (Gnum) (prodval / (float) edloval + 0.49F);
-      }
+      for (edgenum = indverttax[vertnum], edgennd = indvendtax[vertnum];
+           edgenum < edgennd; edgenum ++) {
+        Gnum                edloval;
+
+        edloval = indedlotax[edgenum];
+        if (edloval == edlomin)
+          edloval = edlomax;
+        else if (edloval == edlomax)
+          edloval = edlomin;
+        else
+          edloval = (Gnum) (prodval / (float) edloval + 0.49F);
 #ifdef SCOTCH_DEBUG_ARCH2
-      if ((edloval < edlomin) || (edloval > edlomax)) {
-        errorPrint ("archBuild: internal error (1)");
-        return     (1);
-      }
+        if ((edloval < edlomin) || (edloval > edlomax)) {
+          errorPrint ("archBuild: internal error (1)");
+          return     (1);
+        }
 #endif /* SCOTCH_DEBUG_ARCH2 */
-      invedlotax[edgenum] = edloval;              /* Write inversed cost in working array */
+        invedlotax[edgenum] = edloval;            /* Write inversed cost in working array */
+      }
     }
 
     jobtab[0].grafdat.edlotax = invedlotax;       /* Replace potentially induced edge array with inversed one */
   }                                               /* Edge array will be freed along with jobtab group leader  */
 
-  mapparttax = mapdat.parttax;
+  mapparttax = mappdat.parttax;
 
   actgrafdat.veextax = NULL;                      /* No external gain array      */
   actgrafdat.parttax = actparttax;                /* Set global auxiliary arrays */
@@ -256,12 +280,13 @@ const Strat * const         mapstrat)             /*+ Bipartitioning strategy   
 
     memCpy (&actgrafdat.s, &joborgptr->grafdat, sizeof (Graph));
     actgrafdat.s.flagval = joborgptr->grafdat.flagval & ~GRAPHFREETABS;
-    bgraphInit2 (&actgrafdat, 1, 1, 1);           /* Create active graph         */
+    bgraphInit2 (&actgrafdat, 1, 1, 1, 0, 0);     /* Create active graph         */
     if (bgraphBipartSt (&actgrafdat, mapstrat) != 0) { /* Perform bipartitioning */
       errorPrint       ("archBuild: internal error (2)");
       archBuildJobExit (joborgptr);
       archBuildJobExit (joblink);
-      mapExit          (&mapdat);
+      archExit         (&archdat);
+      mapExit          (&mappdat);
       memFree          (jobtab);
       return           (1);
     }
@@ -271,16 +296,17 @@ const Strat * const         mapstrat)             /*+ Bipartitioning strategy   
       graphExit        (&actgrafdat.s);           /* Only free graph part, global arrays kept */
       archBuildJobExit (joborgptr);
       archBuildJobExit (joblink);
-      mapExit          (&mapdat);
+      archExit         (&archdat);
+      mapExit          (&mappdat);
       memFree          (jobtab);
       return           (1);
     }
 
-    archVcmpltDomBipart ((const ArchVcmplt * const) (void *) &mapdat.archdat, /* Update mapping domains */
-                         (const ArchVcmpltDom * const) (void *) &mapdat.domntab[joborgptr->domnum],
+    archVcmpltDomBipart ((const ArchVcmplt * const) (void *) &archdat, /* Update mapping domains */
+                         (const ArchVcmpltDom * const) (void *) &mappdat.domntab[joborgptr->domnum],
                          (ArchVcmpltDom * const) (void *) &domsub0,
-                         (ArchVcmpltDom * const) (void *) &mapdat.domntab[mapdat.domnnbr]);
-    mapdat.domntab[joborgptr->domnum] = domsub0;
+                         (ArchVcmpltDom * const) (void *) &mappdat.domntab[mappdat.domnnbr]);
+    mappdat.domntab[joborgptr->domnum] = domsub0;
     actpartval = actgrafdat.parttax[actgrafdat.s.baseval]; /* Always keep first vertex in sub0 */
     actpartnbr = (actpartval == 0) ? actgrafdat.compsize0 : (actgrafdat.s.vertnbr - actgrafdat.compsize0);
     if (actgrafdat.s.vnumtax != NULL) {           /* Update mapping fraction */
@@ -288,7 +314,7 @@ const Strat * const         mapstrat)             /*+ Bipartitioning strategy   
 
       for (actvertnum = actgrafdat.s.baseval; actvertnum < actgrafdat.s.vertnnd; actvertnum ++) {
         if (actgrafdat.parttax[actvertnum] != actpartval)
-          mapdat.parttax[actgrafdat.s.vnumtax[actvertnum]] = mapdat.domnnbr;
+          mappdat.parttax[actgrafdat.s.vnumtax[actvertnum]] = mappdat.domnnbr;
       }
     }
     else {
@@ -296,12 +322,12 @@ const Strat * const         mapstrat)             /*+ Bipartitioning strategy   
 
       for (actvertnum = actgrafdat.s.baseval; actvertnum < actgrafdat.s.vertnnd; actvertnum ++) {
         if (actgrafdat.parttax[actvertnum] != actpartval)
-          mapdat.parttax[actvertnum] = mapdat.domnnbr;
+          mappdat.parttax[actvertnum] = mappdat.domnnbr;
       }
     }
 
-    jobsubptr = jobtab + mapdat.domnnbr;          /* Point to new subjob          */
-    jobsubptr->domnum = mapdat.domnnbr ++;        /* Build subjobs                */
+    jobsubptr = jobtab + mappdat.domnnbr;         /* Point to new subjob          */
+    jobsubptr->domnum = mappdat.domnnbr ++;       /* Build subjobs                */
     actgrafdat.s.flagval = joborgptr->grafdat.flagval; /* Active is now main copy */
 
     if (actpartnbr < (actgrafdat.s.vertnbr - 1)) { /* If part 1 splittable */
@@ -324,52 +350,42 @@ const Strat * const         mapstrat)             /*+ Bipartitioning strategy   
   if (memAllocGroup ((void **) (void *)
                      &termverttab, (size_t) (termdomnbr                            * sizeof (ArchDecoTermVert)),
                      &termdisttab, (size_t) (((termdomnbr * (termdomnbr - 1)) / 2) * sizeof (Anum)),
-                     &disttab,     (size_t) (tgtgrafptr->vertnbr                   * sizeof (ArchBuildDistElem)), 
+                     &disttax,     (size_t) (tgtgrafptr->vertnbr                   * sizeof (ArchBuildDistElem)), 
                      &queutab,     (size_t) (tgtgrafptr->vertnbr                   * sizeof (ArchBuildQueuElem)), NULL) == NULL) {
     errorPrint ("archBuild: out of memory (2)");
-    mapExit    (&mapdat);
+    mapExit    (&mappdat);
+    archExit   (&archdat);
     return     (1);
   }
 
-  if (tgtlistptr != NULL) {
-    for (i = 0, termdommax = 0; i < termdomnbr; i ++) { /* Set terminal vertex array */
-      termverttab[i].labl = (tgtgrafptr->vnumtax != NULL) ? tgtgrafptr->vnumtax[tgtlistptr->vnumtab[i]] : i;
-      termverttab[i].wght = (tgtgrafptr->velotax != NULL) ? tgtgrafptr->velotax[tgtlistptr->vnumtab[i]] : 1;
-      termverttab[i].num  = archDomNum (&mapdat.archdat, mapDomain (&mapdat, tgtlistptr->vnumtab[i]));
-      if (termverttab[i].num > termdommax)        /* Find maximum terminal number */
-        termdommax = termverttab[i].num;
-    }
-  }
-  else {
-    for (i = 0, termdommax = 0; i < termdomnbr; i ++) { /* Set terminal vertex array */
-      termverttab[i].labl = (tgtgrafptr->vnumtax != NULL) ? tgtgrafptr->vnumtax[i + tgtgrafptr->baseval] : (i + tgtgrafptr->baseval);
-      termverttab[i].wght = (tgtgrafptr->velotax != NULL) ? tgtgrafptr->velotax[i + tgtgrafptr->baseval] : 1;
-      termverttab[i].num  = archDomNum (&mapdat.archdat, mapDomain (&mapdat, (i + tgtgrafptr->baseval)));
-      if (termverttab[i].num > termdommax)        /* Find maximum terminal number */
-        termdommax = termverttab[i].num;
-    }
+  for (termdomnum = 0, termdommax = 0; termdomnum < termdomnbr; termdomnum ++) { /* Set terminal vertex array */
+    Gnum                tgtvertnum;
+
+    tgtvertnum = (tgtlistptr != NULL) ? tgtlistptr->vnumtab[termdomnum] : (termdomnum + tgtgrafptr->baseval);
+    termverttab[termdomnum].labl = tgtvertnum;
+    termverttab[termdomnum].wght = (tgtgrafptr->velotax != NULL) ? tgtgrafptr->velotax[tgtvertnum] : 1;
+    termverttab[termdomnum].num  = archDomNum (&archdat, mapDomain (&mappdat, tgtvertnum - tgtgrafptr->baseval));
+    if (termverttab[termdomnum].num > termdommax) /* Find maximum terminal number */
+      termdommax = termverttab[termdomnum].num;
   }
 
-  for (i = 1; i < termdomnbr; i ++) {             /* For all active vertices except the first */
-    for (j = 0; j < tgtgrafptr->vertnbr; j ++) {
-      disttab[j].queued  = 0;                     /* Vertex not queued       */
-      disttab[j].distval = INTVALMAX;             /* Assume maximum distance */
+  disttax -= tgtgrafptr->baseval;
+  for (termdomnum = 1; termdomnum < termdomnbr; termdomnum ++) { /* For all active terminal vertices except the first */
+    Gnum                termdomend;
+    Gnum                tgtvertnum;
+
+    for (tgtvertnum = tgtgrafptr->baseval; tgtvertnum < (tgtgrafptr->vertnbr + tgtgrafptr->baseval); tgtvertnum ++) {
+      disttax[tgtvertnum].queued  = 0;            /* Vertex not queued       */
+      disttax[tgtvertnum].distval = INTVALMAX;    /* Assume maximum distance */
     }
 
     queuhead =                                    /* Reset the queue */
     queutail = 0;
-    if (tgtlistptr != NULL) {
-      queutab[queutail].vertnum    = tgtlistptr->vnumtab[i]; /* Insert root vertex */
-      queutab[queutail ++].distval = 0;
-      disttab[tgtlistptr->vnumtab[i]].queued  = 1; /* Mark vertex as queued */
-      disttab[tgtlistptr->vnumtab[i]].distval = 0;
-    }
-    else {
-      queutab[queutail].vertnum    = i + tgtgrafptr->baseval; /* Insert root vertex */
-      queutab[queutail ++].distval = 0;
-      disttab[i].queued  = 1;                     /* Mark vertex as queued */
-      disttab[i].distval = 0;
-    }
+    tgtvertnum = termverttab[termdomnum].labl;
+    queutab[queutail].vertnum    = tgtvertnum;    /* Insert root vertex */
+    queutab[queutail ++].distval = 0;
+    disttax[tgtvertnum].queued  = 1;              /* Mark vertex as queued */
+    disttax[tgtvertnum].distval = 0;
 
     while (queuhead < queutail) {                 /* As long as there are vertices in queue */
       Gnum                vertnum;                /* Number of current vertex               */
@@ -379,29 +395,30 @@ const Strat * const         mapstrat)             /*+ Bipartitioning strategy   
       vertnum  = queutab[queuhead].vertnum;       /* Retrieve vertex from queue */
       vertdist = queutab[queuhead ++].distval;
 
-      for (edgenum = tgtgrafptr->verttax[vertnum]; /* For all vertex edges */
-           edgenum < tgtgrafptr->vendtax[vertnum]; edgenum ++) {
+      for (edgenum = tgtverttax[vertnum];         /* For all vertex edges */
+           edgenum < tgtvendtax[vertnum]; edgenum ++) {
         Gnum                vertend;
 
-        vertend = tgtgrafptr->edgetax[edgenum];
-        if (disttab[vertend].queued == 0) {       /* If end vertex not queued */
+        vertend = tgtedgetax[edgenum];
+        if (disttax[vertend].queued == 0) {       /* If end vertex not queued */
           queutab[queutail].vertnum    = vertend; /* Queue the vertex         */
           queutab[queutail ++].distval =
-          disttab[vertend - tgtgrafptr->baseval].distval = vertdist + ((tgtgrafptr->edlotax != NULL) ? tgtgrafptr->edlotax[edgenum] : 1);
-          disttab[vertend - tgtgrafptr->baseval].queued  = 1; /* Mark vertex as queued */
+          disttax[vertend].distval = vertdist + ((tgtedlotax != NULL) ? tgtedlotax[edgenum] : 1);
+          disttax[vertend].queued  = 1;           /* Mark vertex as queued */
         }
       }
     }
 
-    for (j = 0; j < i; j ++)                      /* For all previous vertices */
-      termdisttab[((i * (i - 1)) / 2) + j] =      /* Retrieve distance         */
-        disttab[j].distval;
+    for (termdomend = 0; termdomend < termdomnum; termdomend ++) /* For all previous terminal domains */
+      termdisttab[((termdomnum * (termdomnum - 1)) / 2) + termdomend] = /* Retrieve distance          */
+        disttax[termverttab[termdomend].labl].distval;
   }
 
   archDecoArchBuild ((ArchDeco *) (void *) &tgtarchptr->data, termdomnbr, termdommax, termverttab, termdisttab);
 
-  memFree (termverttab);                          /* Free group leader */
-  mapExit  (&mapdat);
+  memFree  (termverttab);                         /* Free group leader */
+  mapExit  (&mappdat);
+  archExit (&archdat);
 
   return (0);
 }

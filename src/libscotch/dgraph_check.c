@@ -1,4 +1,4 @@
-/* Copyright 2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2010,2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -38,7 +38,7 @@
 /**                Sebastien FOUCAULT (P0.0)               **/
 /**                Nicolas GICQUEL (P0.1)                  **/
 /**                Jerome LACOSTE (P0.1)                   **/
-/**                Cedric CHEVALIER                        **/
+/**                Cedric CHEVALIER (v5.0)                 **/
 /**                                                        **/
 /**   FUNCTION   : Part of a parallel static mapper.       **/
 /**                This module contains the distributed    **/
@@ -54,6 +54,8 @@
 /**                                 to   : 10 sep 2007     **/
 /**                # Version 5.1  : from : 20 nov 2008     **/
 /**                                 to   : 30 jul 2010     **/
+/**                # Version 6.0  : from : 29 sep 2012     **/
+/**                                 to   : 09 feb 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -92,16 +94,21 @@ const Dgraph * restrict const grafptr)
   int                 procngbsel;                 /* Value of the currently used neighbor buffers */
   int                 procngbnum;                 /* Number of current neighbor process           */
   Gnum *              procngbtab;                 /* Array of neighbor vertex ranges              */
+  int                 procnum;
   Gnum                vertlocnum;
   Gnum                vertngbmin;                 /* Smallest vertex number of neighbor process   */
   Gnum                vertngbmax;                 /* Largest vertex number of neighbor process    */
   int                 vertngbnbr[2];              /* Size of the neighbor vertex arrays           */
   Gnum * restrict     vertngbtab[2];              /* Array of two neighbor vertex arrays          */
+  Gnum * restrict     vertngbptr;                 /* Pointer to working neighbor vertex array     */
   Gnum * restrict     vendngbtab[2];              /* Array of two neighbor end vertex arrays      */
+  Gnum * restrict     vendngbptr;                 /* Pointer to working neighbor end vertex array */
   Gnum                edgelocnbr;                 /* Local number of edges                        */
   int                 edgengbnbr[2];              /* Size of the neighbor vertex arrays           */
   Gnum * restrict     edgengbtab[2];              /* Array of two neighbor edge arrays            */
+  Gnum * restrict     edgengbptr;                 /* Pointer to working neighbor edge array       */
   Gnum * restrict     edlongbtab[2];              /* Array of two neighbor edge load arrays       */
+  Gnum * restrict     edlongbptr;                 /* Pointer to working neighbor edge load array  */
   Gnum                edlolocsiz;                 /* Size of neighbor edge load array (if any)    */
   int                 cheklocval;                 /* Local consistency flag                       */
   int                 chekglbval;                 /* Global consistency flag                      */
@@ -109,6 +116,13 @@ const Dgraph * restrict const grafptr)
   Gnum                reduglbtab[20];
   MPI_Request         requloctab[8];              /* Arrays for pipelined communications          */
   MPI_Status          statloctab[8];
+
+  Gnum * restrict const vertloctax = grafptr->vertloctax;
+  Gnum * restrict const vendloctax = grafptr->vendloctax;
+  Gnum * restrict const veloloctax = grafptr->veloloctax;
+  Gnum * restrict const edgeloctax = grafptr->edgeloctax;
+  Gnum * restrict const edgegsttax = grafptr->edgegsttax;
+  Gnum * restrict const edloloctax = grafptr->edloloctax;
 
   proccomm = grafptr->proccomm;                   /* Simplify */
 
@@ -253,9 +267,9 @@ const Dgraph * restrict const grafptr)
     errorPrint ("dgraphCheck: inconsistent global graph data (1)");
     cheklocval = 1;
   }
-  reduloctab[0] = (grafptr->veloloctax != NULL) ? 1 : 0; /* Check consistency */
-  reduloctab[1] = (grafptr->edgegsttax != NULL) ? 1 : 0;
-  reduloctab[2] = (grafptr->edloloctax != NULL) ? 1 : 0;
+  reduloctab[0] = (veloloctax          != NULL) ? 1 : 0; /* Check consistency */
+  reduloctab[1] = (edgegsttax          != NULL) ? 1 : 0;
+  reduloctab[2] = (edloloctax          != NULL) ? 1 : 0;
   reduloctab[3] = (grafptr->vnumloctax != NULL) ? 1 : 0;
   reduloctab[4] = grafptr->vertlocnbr;            /* Recompute local sizes */
   reduloctab[5] = grafptr->edgelocnbr;
@@ -279,21 +293,31 @@ const Dgraph * restrict const grafptr)
   for (vertlocnum = grafptr->baseval, edgelocnbr = 0; vertlocnum < grafptr->vertlocnnd; vertlocnum ++) {
     Gnum                edgelocnum;
 
-    if ((grafptr->vendloctax[vertlocnum] < grafptr->vertloctax[vertlocnum]) ||
-        (grafptr->vendloctax[vertlocnum] > (grafptr->edgelocsiz + grafptr->baseval))) {
+    if ((vendloctax[vertlocnum] < vertloctax[vertlocnum]) ||
+        (vendloctax[vertlocnum] > (grafptr->edgelocsiz + grafptr->baseval))) {
       errorPrint ("dgraphCheck: inconsistent local vertex arrays");
       edgelocnbr = grafptr->edgelocnbr;           /* Avoid unwanted cascaded error messages */
       cheklocval = 1;
       break;
     }
-    edgelocnbr += grafptr->vendloctax[vertlocnum] - grafptr->vertloctax[vertlocnum];
+    edgelocnbr += vendloctax[vertlocnum] - vertloctax[vertlocnum];
 
     if ((grafptr->flagval & DGRAPHHASEDGEGST) != 0) { /* If ghost edge array is valid */
-      for (edgelocnum = grafptr->vertloctax[vertlocnum]; edgelocnum < grafptr->vendloctax[vertlocnum]; edgelocnum ++) {
-        if ((grafptr->edgegsttax[edgelocnum] < grafptr->baseval) ||
-            (grafptr->edgegsttax[edgelocnum] >= grafptr->vertgstnnd)) {
+      for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
+        if ((edgegsttax[edgelocnum] < grafptr->baseval) ||
+            (edgegsttax[edgelocnum] >= grafptr->vertgstnnd)) {
           errorPrint ("dgraphCheck: inconsistent ghost edge array");
           edgelocnbr = grafptr->edgelocnbr;       /* Avoid unwanted cascaded error messages */
+          vertlocnum = grafptr->vertlocnnd;       /* Exit outer loop                        */
+          cheklocval = 1;
+          break;
+        }
+
+        if ((edloloctax != NULL) &&
+            (edloloctax[edgelocnum] <= 0)) {
+          errorPrint ("dgraphCheck: invalid edge load");
+          edgelocnbr = grafptr->edgelocnbr;       /* Avoid unwanted cascaded error messages */
+          vertlocnum = grafptr->vertlocnnd;       /* Exit outer loop                        */
           cheklocval = 1;
           break;
         }
@@ -304,6 +328,7 @@ const Dgraph * restrict const grafptr)
     errorPrint ("dgraphCheck: invalid local number of edges");
     cheklocval = 1;
   }
+
   if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, proccomm) != MPI_SUCCESS) {
     errorPrint ("dgraphCheck: communication error (7)");
     return     (1);
@@ -311,16 +336,24 @@ const Dgraph * restrict const grafptr)
   if (chekglbval != 0)
     return (1);
 
-  if (grafptr->veloloctax != NULL) { /* We must check that load data are consistent */
+  if (veloloctax != NULL) {                       /* Check vertex load consistency */
     Gnum                velolocsum;
     Gnum                veloglbsum;
 
-    for (vertlocnum = grafptr->baseval, velolocsum = 0; vertlocnum < grafptr->vertlocnnd; vertlocnum ++)
-      velolocsum += grafptr->veloloctax[vertlocnum];
+    for (vertlocnum = grafptr->baseval, velolocsum = 0; vertlocnum < grafptr->vertlocnnd; vertlocnum ++) {
+      Gnum                veloval;
+
+      veloval = veloloctax[vertlocnum];
+      if ((veloval < 0) && (cheklocval == 0)) {
+        errorPrint ("dgraphCheck: invalid vertex load");
+        cheklocval = 1;
+      }
+
+      velolocsum += veloval;
+    }
 
     MPI_Allreduce (&velolocsum, &veloglbsum, 1, GNUM_MPI, MPI_SUM, proccomm);
 
-    cheklocval = 0;
     if (velolocsum != grafptr->velolocsum) {
       errorPrint ("dgraphCheck: invalid local vertex load sum");
       cheklocval = 1;
@@ -334,7 +367,7 @@ const Dgraph * restrict const grafptr)
       return (1);
   }
 
-  edlolocsiz = (grafptr->edloloctax != NULL) ? grafptr->edgeglbsmx : 0;
+  edlolocsiz = (edloloctax != NULL) ? grafptr->edgeglbsmx : 0;
   if (memAllocGroup ((void **) (void *)
                      &vertngbtab[0], (size_t) (grafptr->vertglbmax * sizeof (Gnum)), /* Send vertex and vertex end arrays, even when they are compact */
                      &vertngbtab[1], (size_t) (grafptr->vertglbmax * sizeof (Gnum)),
@@ -347,9 +380,15 @@ const Dgraph * restrict const grafptr)
     errorPrint ("dgraphCheck: out of memory (2)");
     cheklocval = 1;
   }
-  if (grafptr->edloloctax == NULL) {              /* If graph edges are not weighted */
+  edgengbtab[0] -= grafptr->baseval;              /* Base edges arrays only */
+  edgengbtab[1] -= grafptr->baseval;
+  if (edloloctax == NULL) {                       /* If graph edges are not weighted */
     edlongbtab[0] =                               /* Edge load arrays are fake       */
     edlongbtab[1] = NULL;
+  }
+  else {
+    edlongbtab[0] -= grafptr->baseval;
+    edlongbtab[1] -= grafptr->baseval;
   }
   if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, proccomm) != MPI_SUCCESS) {
     errorPrint ("dgraphCheck: communication error (8)");
@@ -361,34 +400,20 @@ const Dgraph * restrict const grafptr)
     return (1);
   }
 
-  MPI_Irecv (vertngbtab[0], grafptr->vertglbmax, GNUM_MPI, procrcvnum, TAGVERTLOCTAB, proccomm, &requloctab[0]);
-  MPI_Irecv (vendngbtab[0], grafptr->vertglbmax, GNUM_MPI, procrcvnum, TAGVENDLOCTAB, proccomm, &requloctab[1]);
-  MPI_Irecv (edgengbtab[0], grafptr->edgeglbsmx, GNUM_MPI, procrcvnum, TAGEDGELOCTAB, proccomm, &requloctab[2]);
-  if (grafptr->edloloctax != NULL)
-    MPI_Irecv (edlongbtab[0], grafptr->edgeglbsmx, GNUM_MPI, procrcvnum, TAGEDLOLOCTAB, proccomm, &requloctab[3]);
-
-  MPI_Send (grafptr->vertloctax + grafptr->baseval, grafptr->vertlocnbr, GNUM_MPI, procsndnum, TAGVERTLOCTAB, proccomm);
-  MPI_Send (grafptr->vendloctax + grafptr->baseval, grafptr->vertlocnbr, GNUM_MPI, procsndnum, TAGVENDLOCTAB, proccomm);
-  MPI_Send (grafptr->edgeloctax + grafptr->baseval, grafptr->edgelocsiz, GNUM_MPI, procsndnum, TAGEDGELOCTAB, proccomm);
-  if (grafptr->edloloctax != NULL) {              /* Send synchronously vertloctab and vendloctab to avoid MPI Isend problem if same array */
-    MPI_Send (grafptr->edloloctax + grafptr->baseval, grafptr->edgelocsiz, GNUM_MPI, procsndnum, TAGEDLOLOCTAB, proccomm);
-    MPI_Waitall (4, &requloctab[0], &statloctab[0]);
-  }
-  else
-    MPI_Waitall (3, &requloctab[0], &statloctab[0]);
-
-  MPI_Get_count (&statloctab[0], GNUM_MPI, &vertngbnbr[0]);
-  MPI_Get_count (&statloctab[2], GNUM_MPI, &edgengbnbr[0]);
-
-  for (procngbnum  = (proclocnum + 1) % procglbnbr, procngbsel = 0; /* Loop on all other processes */
-       procngbnum != proclocnum;
-       procngbnum  = (procngbnum + 1) % procglbnbr, procngbsel ^= 1) {
+  procngbsel = 0;                                 /* Initial work array selector  */
+  vertngbptr = vertloctax + grafptr->baseval;     /* Start working on self arrays */
+  vendngbptr = vendloctax + grafptr->baseval;     /* Un-base vertex arrays        */
+  edgengbptr = edgeloctax;                        /* Edge arrays are based        */
+  edlongbptr = edloloctax;
+  vertngbnbr[0] = grafptr->vertlocnbr;            /* Set number of local vertices and edges to send      */
+  edgengbnbr[0] = grafptr->edgelocsiz;            /* Send all of edge array is case graph is not compact */
+  for (procnum = 0; procnum < procglbnbr; procnum ++) { /* For all processes including self              */
+    Gnum                procngbnum;
     Gnum                vertlocnum;
     Gnum                vertglbnum;
-    Gnum * restrict     edgengbtax;
-    Gnum * restrict     edlongbtax;
 
-    vertngbmin = grafptr->procvrttab[procngbnum]; /* Get neighbor vertex number range */
+    procngbnum = (proclocnum + procnum) % procglbnbr; /* Compute neighbor process number */
+    vertngbmin = grafptr->procvrttab[procngbnum]; /* Get neighbor vertex number range    */
     vertngbmax = grafptr->procvrttab[procngbnum + 1];
 
 #ifdef SCOTCH_DEBUG_DGRAPH2
@@ -399,24 +424,19 @@ const Dgraph * restrict const grafptr)
     }
 #endif /* SCOTCH_DEBUG_DGRAPH2 */
 
-    if (((procngbnum + 1) % procglbnbr) != proclocnum) {
+    if (procnum < (procglbnbr - 1)) {             /* For all rounds except the last one */
       MPI_Irecv (vertngbtab[1 - procngbsel], grafptr->vertglbmax, GNUM_MPI, procrcvnum, TAGVERTLOCTAB, proccomm, &requloctab[4]);
       MPI_Irecv (vendngbtab[1 - procngbsel], grafptr->vertglbmax, GNUM_MPI, procrcvnum, TAGVENDLOCTAB, proccomm, &requloctab[5]);
-      MPI_Irecv (edgengbtab[1 - procngbsel], grafptr->edgeglbsmx, GNUM_MPI, procrcvnum, TAGEDGELOCTAB, proccomm, &requloctab[6]);
-      MPI_Isend (vertngbtab[procngbsel], vertngbnbr[procngbsel], GNUM_MPI, procsndnum, TAGVERTLOCTAB, proccomm, &requloctab[1]);
-      MPI_Isend (vendngbtab[procngbsel], vertngbnbr[procngbsel], GNUM_MPI, procsndnum, TAGVENDLOCTAB, proccomm, &requloctab[2]);
-      MPI_Isend (edgengbtab[procngbsel], edgengbnbr[procngbsel], GNUM_MPI, procsndnum, TAGEDGELOCTAB, proccomm, &requloctab[3]);
-      if (grafptr->edloloctax != NULL) {
-        MPI_Irecv (edlongbtab[1 - procngbsel], grafptr->edgeglbsmx, GNUM_MPI, procrcvnum, TAGEDLOLOCTAB, proccomm, &requloctab[7]);
-        MPI_Isend (edlongbtab[procngbsel], edgengbnbr[procngbsel], GNUM_MPI, procsndnum, TAGEDLOLOCTAB, proccomm, &requloctab[0]);
-      }
-    }
-    edgengbtax = edgengbtab[procngbsel] - grafptr->baseval;
-    edlongbtax = (grafptr->edloloctax != NULL) ? (edlongbtab[procngbsel] - grafptr->baseval) : NULL;
-
-    if (((procngbnum + 1) % procglbnbr) != proclocnum) { /* Before MPI 2.2, complete communications before accessing arrays being sent */
-      if (grafptr->edloloctax != NULL)
+      MPI_Irecv (edgengbtab[1 - procngbsel] + grafptr->baseval, grafptr->edgeglbsmx, GNUM_MPI, procrcvnum, TAGEDGELOCTAB, proccomm, &requloctab[6]);
+      MPI_Isend (vertngbptr, vertngbnbr[procngbsel], GNUM_MPI, procsndnum, TAGVERTLOCTAB, proccomm, &requloctab[1]);
+      MPI_Isend (vendngbptr, vertngbnbr[procngbsel], GNUM_MPI, procsndnum, TAGVENDLOCTAB, proccomm, &requloctab[2]);
+      MPI_Isend (edgengbptr + grafptr->baseval, edgengbnbr[procngbsel], GNUM_MPI, procsndnum, TAGEDGELOCTAB, proccomm, &requloctab[3]);
+      if (edlongbptr != NULL) {
+        MPI_Irecv (edlongbtab[1 - procngbsel] + grafptr->baseval, grafptr->edgeglbsmx, GNUM_MPI, procrcvnum, TAGEDLOLOCTAB, proccomm, &requloctab[7]);
+        MPI_Isend (edlongbptr + grafptr->baseval, edgengbnbr[procngbsel], GNUM_MPI, procsndnum, TAGEDLOLOCTAB, proccomm, &requloctab[0]);
+                                                  /* Complete communications before accessing arrays being sent */
         MPI_Waitall (8, &requloctab[0], &statloctab[0]);
+      }
       else
         MPI_Waitall (6, &requloctab[1], &statloctab[1]);
       MPI_Get_count (&statloctab[4], GNUM_MPI, &vertngbnbr[1 - procngbsel]);
@@ -427,30 +447,30 @@ const Dgraph * restrict const grafptr)
          vertlocnum < grafptr->vertlocnnd; vertlocnum ++, vertglbnum ++) {
       Gnum                edgelocnum;
 
-      for (edgelocnum = grafptr->vertloctax[vertlocnum];
-           edgelocnum < grafptr->vendloctax[vertlocnum]; edgelocnum ++) {
+      for (edgelocnum = vertloctax[vertlocnum];
+           edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
         Gnum                vertglbend;
 
-        vertglbend = grafptr->edgeloctax[edgelocnum];
+        vertglbend = edgeloctax[edgelocnum];
         if ((vertglbend >= vertngbmin) &&         /* If end vertex belongs to current neighbor process */
             (vertglbend <  vertngbmax)) {
           Gnum                edgengbnum;
           Gnum                edgengbnnd;
-          Gnum                edgengbcnt;
+          Gnum                edgengbsum;
 
-          for (edgengbnum = vertngbtab[procngbsel][vertglbend - vertngbmin],
-               edgengbnnd = vendngbtab[procngbsel][vertglbend - vertngbmin], edgengbcnt = 0;
+          for (edgengbnum = vertngbptr[vertglbend - vertngbmin],
+               edgengbnnd = vendngbptr[vertglbend - vertngbmin], edgengbsum = 0;
                edgengbnum < edgengbnnd; edgengbnum ++) {
-            if (edgengbtax[edgengbnum] == vertglbnum) { /* If matching edge found */
-              edgengbcnt ++;                      /* Account for it               */
-              if ((edlongbtax != NULL) &&         /* If edge weights do not match */
-                  (edlongbtax[edgengbnum] != grafptr->edloloctax[edgelocnum]))
+            if (edgengbptr[edgengbnum] == vertglbnum) { /* If matching edge found */
+              edgengbsum ++;                      /* Account for it               */
+              if ((edlongbptr != NULL) &&         /* If edge weights do not match */
+                  (edlongbptr[edgengbnum] != edloloctax[edgelocnum]))
                 cheklocval = 3;
             }
           }
-          if (edgengbcnt < 1)                     /* If matching edge not found */
+          if (edgengbsum < 1)                     /* If matching edge not found */
             cheklocval = 1;
-          else if (edgengbcnt > 1)                /* If duplicate edge */
+          else if (edgengbsum > 1)                /* If duplicate edge */
             cheklocval = 2;
         }
       }
@@ -467,6 +487,12 @@ const Dgraph * restrict const grafptr)
       memFree (vertngbtab[0]);                    /* Free group leader */
       return  (1);
     }
+
+    procngbsel ^= 1;                              /* Swap work and receive buffers */
+    vertngbptr = vertngbtab[procngbsel];          /* Point to future work buffers  */
+    vendngbptr = vendngbtab[procngbsel];          /* Vertex pointers are unbased   */
+    edgengbptr = edgengbtab[procngbsel];          /* Edge pointers are based       */
+    edlongbptr = edlongbtab[procngbsel];
   }
   memFree (vertngbtab[0]);                        /* Free group leader */
 

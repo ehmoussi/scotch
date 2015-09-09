@@ -1,4 +1,4 @@
-/* Copyright 2007-2009 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2009,2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -50,7 +50,9 @@
 /**                # Version 5.0  : from : 28 feb 2006     **/
 /**                                 to     10 sep 2007     **/
 /**                # Version 5.1  : from : 02 jul 2008     **/
-/**                                 to     24 apr 2009     **/
+/**                                 to     20 feb 2011     **/
+/**                # Version 6.0  : from : 21 nov 2011     **/
+/**                                 to     21 nov 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -63,6 +65,7 @@
 #include "module.h"
 #include "common.h"
 #include "dgraph.h"
+#include "dgraph_allreduce.h"
 #include "dgraph_ghst.h"
 #include "dgraph_halo.h"
 
@@ -80,12 +83,15 @@
 ** - !0  : on error.
 */
 
+DGRAPHALLREDUCEMAXSUMOP (2, 1)
+
 int
 dgraphGhst2 (
 Dgraph * restrict const     grafptr,              /* Graph structure  */
 const int                   flagval)              /* Replacement flag */
 {
   int                       procngbnbr;           /* Number of neighboring processes               */
+  int * restrict            procsndtab;
   Gnum                      procsndnbr;
   int * restrict            procsidtab;           /* Send index array                              */
   int                       procsidnbr;           /* Number of entries in send index array         */
@@ -99,16 +105,19 @@ const int                   flagval)              /* Replacement flag */
   DgraphGhstSort * restrict sortloctab;           /* Array for sorting ghost vertices              */
   Gnum                      sortlocnbr;           /* Number of ghost edges in sort array           */
   Gnum                      sortlocnum;
-  Gnum *                    edgeloctax;           /* Pointer to original edgeloctax array          */
   Gnum *                    edgegsttax;           /* Pointer to ghost edge array, maybe the same   */
-  int                       reduloctab[2];
-  int                       reduglbtab[2];
+  Gnum                      reduloctab[3];        /* Gnum to perform a maxsum operator             */
+  Gnum                      reduglbtab[3];
   int                       cheklocval;
+
+  const Gnum * restrict const procvrttab = grafptr->procvrttab;
+  const Gnum * restrict const vertloctax = grafptr->vertloctax;
+  const Gnum * restrict const vendloctax = grafptr->vendloctax;
+  const Gnum * restrict const edgeloctax = grafptr->edgeloctax; /* Pointer to original edgeloctax array */
 
   if ((grafptr->flagval & DGRAPHHASEDGEGST) != 0) /* If ghost edge array already computed, do nothing */
     return (0);
 
-  edgeloctax = grafptr->edgeloctax;
   cheklocval = 0;
   if (grafptr->edgegsttax == NULL) {              /* If ghost edge array not allocated yet                          */
     if ((flagval == 0) || ((grafptr->flagval & DGRAPHFREETABS) == 0)) { /* If no replacement or cannot modify array */
@@ -138,34 +147,37 @@ const int                   flagval)              /* Replacement flag */
   }
 
   reduloctab[0] = 1;                              /* Assume memory error and prepare data for aborting */
-  reduloctab[1] = 0;
+  reduloctab[1] =
+  reduloctab[2] = 0;
   if (cheklocval != 0) {                          /* TRICK: Processes not on error will perform collective communication at end of routine */
-    if (MPI_Allreduce (reduloctab, reduglbtab, 2, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS)
+    if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0) {
       errorPrint ("dgraphGhst: communication error (1)");
-    return (1);
+      return (1);
+    }
   }
 
-  vertlocmin = grafptr->procvrttab[grafptr->proclocnum];
-  vertlocmax = grafptr->procvrttab[grafptr->proclocnum + 1];
+  vertlocmin = procvrttab[grafptr->proclocnum];
+  vertlocmax = procvrttab[grafptr->proclocnum + 1];
   vertlocbas = vertlocmin - grafptr->baseval;
   memSet (grafptr->procrcvtab, 0, grafptr->procglbnbr * sizeof (int));
   memSet (grafptr->procsndtab, 0, grafptr->procglbnbr * sizeof (int));
   memSet (vertsidtab,         ~0, grafptr->procglbnbr * sizeof (Gnum));
 
   edgegsttax = grafptr->edgegsttax;
+  procsndtab = grafptr->procsndtab;
   for (vertlocnum = vertsidnum = grafptr->baseval, sortlocnbr = 0, procsidnbr = 0;
        vertlocnum < grafptr->vertlocnnd; vertlocnum ++) {
     Gnum   edgelocnum;
 
-    for (edgelocnum = grafptr->vertloctax[vertlocnum];
-         edgelocnum < grafptr->vendloctax[vertlocnum]; edgelocnum ++) {
+    for (edgelocnum = vertloctax[vertlocnum];
+         edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
       Gnum   vertlocend;
 
       vertlocend = edgeloctax[edgelocnum];
 #ifdef SCOTCH_DEBUG_DGRAPH2
-      if ((vertlocend < grafptr->baseval) || (vertlocend >= (grafptr->procvrttab[grafptr->procglbnbr]))) {
+      if ((vertlocend < grafptr->baseval) || (vertlocend >= (procvrttab[grafptr->procglbnbr]))) {
         errorPrint ("dgraphGhst: invalid edge array");
-        if (MPI_Allreduce (reduloctab, reduglbtab, 2, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS)
+        if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0)
           errorPrint ("dgraphGhst: communication error (2)");
         memFree (procsidtab);                     /* Free group leader */
         return  (1);
@@ -187,7 +199,7 @@ const int                   flagval)              /* Replacement flag */
           int                 procngbmed;
 
           procngbmed = (procngbmax + procngbnum) / 2;
-          if (grafptr->procvrttab[procngbmed] <= vertlocend)
+          if (procvrttab[procngbmed] <= vertlocend)
             procngbnum = procngbmed;
           else
             procngbmax = procngbmed;
@@ -195,7 +207,7 @@ const int                   flagval)              /* Replacement flag */
 
         if (vertsidtab[procngbnum] != vertlocnum) { /* If vertex not already sent to process  */
           vertsidtab[procngbnum] = vertlocnum;    /* Neighbor process will receive vertex     */
-          grafptr->procsndtab[procngbnum] ++;     /* One more vertex to send to this neighbor */
+          procsndtab[procngbnum] ++;              /* One more vertex to send to this neighbor */
 
           while ((vertlocnum - vertsidnum) >= DGRAPHGHSTSIDMAX) { /* If Gnum range too long for int */
             procsidtab[procsidnbr ++] = -DGRAPHGHSTSIDMAX; /* Decrease by maximum int distance      */
@@ -221,17 +233,17 @@ const int                   flagval)              /* Replacement flag */
 
     intSort2asc1 (sortloctab, sortlocnbr);        /* Sort them by ascending end vertex */
 
-    sortlocnum = 0;                               /* Start adjacency search from beginning                        */
-    procngbnum = -1;                              /* Start neighbor search from begnning                          */
-    do {                                          /* For each distinct neighbor process                           */
-      vertgstbas = vertgstnum;                    /* Record first ghost number used for it                        */
-      edgegsttax[sortloctab[sortlocnum].edgegstnum] = vertgstnum; /* First ghost is always allocated              */
-      while (grafptr->procvrttab[++ procngbnum + 1] <= sortloctab[sortlocnum].vertglbnum) { /* Find owner process */
+    sortlocnum = 0;                               /* Start adjacency search from beginning               */
+    procngbnum = -1;                              /* Start neighbor search from begnning                 */
+    do {                                          /* For each distinct neighbor process                  */
+      vertgstbas = vertgstnum;                    /* Record first ghost number used for it               */
+      edgegsttax[sortloctab[sortlocnum].edgegstnum] = vertgstnum; /* First ghost is always allocated     */
+      while (procvrttab[++ procngbnum + 1] <= sortloctab[sortlocnum].vertglbnum) { /* Find owner process */
 #ifdef SCOTCH_DEBUG_DGRAPH2
         if ((procngbnum > grafptr->procglbnbr) || /* If we have skipped a neighbor to which we have to send something */
-            (grafptr->procsndtab[procngbnum] != 0)) {
+            (procsndtab[procngbnum] != 0)) {
           errorPrint ("dgraphGhst: internal error (1)");
-          if (MPI_Allreduce (reduloctab, reduglbtab, 2, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS)
+          if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0)
             errorPrint ("dgraphGhst: communication error (3)");
           memFree (procsidtab);                   /* Free group leader */
           return (1);
@@ -239,22 +251,22 @@ const int                   flagval)              /* Replacement flag */
 #endif /* SCOTCH_DEBUG_DGRAPH2 */
       }
 #ifdef SCOTCH_DEBUG_DGRAPH2
-      if (grafptr->procsndtab[procngbnum] == 0) { /* If we had in fact no edges to send to this neighbor */
+      if (procsndtab[procngbnum] == 0) {          /* If we had in fact no edges to send to this neighbor */
         errorPrint ("dgraphGhst: internal error (2)");
-        if (MPI_Allreduce (reduloctab, reduglbtab, 2, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS)
+        if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0)
           errorPrint ("dgraphGhst: communication error (4)");
         return (1);
       }
 #endif /* SCOTCH_DEBUG_DGRAPH2 */
-      procsndnbr += grafptr->procsndtab[procngbnum]; /* Sum-up vertices to send            */
+      procsndnbr += procsndtab[procngbnum];       /* Sum-up vertices to send               */
       grafptr->procngbtab[procngbnbr ++] = procngbnum; /* Add it to neighbor process array */
       while (++ sortlocnum < sortlocnbr) {        /* For all following ghost edges         */
         if (sortloctab[sortlocnum].vertglbnum !=  /* If new ghost vertex                   */
             sortloctab[sortlocnum - 1].vertglbnum) {
-          vertgstnum ++;                          /* Allocate new ghost vertex number */
-          if (grafptr->procvrttab[procngbnum + 1] <= sortloctab[sortlocnum].vertglbnum) { /* If new neighbor */
-            grafptr->procrcvtab[procngbnum] = vertgstnum - vertgstbas; /* Sum-up data for old neighbor       */
-            break;                                /* Process new neighbor                                    */
+          vertgstnum ++;                          /* Allocate new ghost vertex number                  */
+          if (procvrttab[procngbnum + 1] <= sortloctab[sortlocnum].vertglbnum) { /* If new neighbor    */
+            grafptr->procrcvtab[procngbnum] = vertgstnum - vertgstbas; /* Sum-up data for old neighbor */
+            break;                                /* Process new neighbor                              */
           }
         }
         edgegsttax[sortloctab[sortlocnum].edgegstnum] = vertgstnum; /* Allocate ghost */
@@ -273,16 +285,23 @@ const int                   flagval)              /* Replacement flag */
   grafptr->procsidnbr = procsidnbr;
 
   reduloctab[0] = 0;                              /* No memory error                 */
-  reduloctab[1] = grafptr->procngbnbr;            /* Set maximum number of neighbors */
-  if (MPI_Allreduce (reduloctab, reduglbtab, 2, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
+  reduloctab[1] =                                 /* Set maximum number of neighbors */
+  reduloctab[2] = grafptr->procngbnbr;
+  if (dgraphAllreduceMaxSum (reduloctab, reduglbtab, 2, 1, grafptr->proccomm) != 0) {
     errorPrint ("dgraphGhst: communication error (5)");
     return     (1);
   }
   if (reduglbtab[0] != 0)                         /* If error, propagated by some previous reduction operator */
     return (1);
 
-  grafptr->flagval   |= DGRAPHFREEPSID | DGRAPHHASEDGEGST; /* Graph now has a valid ghost edge array */
   grafptr->procngbmax = reduglbtab[1];
+  grafptr->flagval   |= DGRAPHFREEPSID | DGRAPHHASEDGEGST; /* Graph now has a valid ghost edge array */
+#ifndef SCOTCH_COMM_COLL
+#ifndef SCOTCH_COMM_PTOP
+  if (((float) reduglbtab[2]) <= ((float) grafptr->procglbnbr * (float) (grafptr->procglbnbr - 1) * (float) SCOTCH_COMM_PTOP_RAT))
+#endif /* SCOTCH_COMM_PTOP */
+    grafptr->flagval |= DGRAPHCOMMPTOP;           /* If too few communications, use point-to-point instead */
+#endif /* SCOTCH_COMM_COLL */
 
 #ifdef SCOTCH_DEBUG_DGRAPH2
   if (dgraphHaloCheck (grafptr) != 0) {

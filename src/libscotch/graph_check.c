@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2011,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -56,6 +56,8 @@
 /**                                 to     22 apr 2004     **/
 /**                # Version 5.0  : from : 13 dec 2006     **/
 /**                                 to     02 oct 2007     **/
+/**                # Version 6.0  : from : 27 jun 2011     **/
+/**                                 to     14 feb 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -118,8 +120,16 @@ const Graph * const         grafptr)
       Gnum                edgeend;                /* Number of end vertex edge */
 
       vertend = grafptr->edgetax[edgenum];
-      if (grafptr->edlotax != NULL)
-        edlosum += grafptr->edlotax[edgenum];
+      if (grafptr->edlotax != NULL) {
+        Gnum                edlotmp;
+
+        edlotmp = edlosum + grafptr->edlotax[edgenum];
+        if (edlotmp < edlosum) {                  /* If overflow */
+          errorPrint ("graphCheck: edge load sum overflow");
+          return     (1);
+        }
+        edlosum = edlotmp;
+      }
 
       if ((vertend < grafptr->baseval) || (vertend >= grafptr->vertnnd)) { /* If invalid edge end */
         errorPrint ("graphCheck: invalid edge array");
@@ -146,11 +156,18 @@ const Graph * const         grafptr)
       }
     }
     if (grafptr->velotax != NULL) {
-      if (grafptr->velotax[vertnum] < 1) {        /* If non-strictly positive loads */
+      Gnum                velotmp;
+
+      if (grafptr->velotax[vertnum] < 0) {        /* If non positive loads */
         errorPrint ("graphCheck: invalid vertex load array");
         return     (1);
       }
-      velosum += grafptr->velotax[vertnum];       /* Accumulate vertex loads */
+      velotmp = velosum + grafptr->velotax[vertnum];
+      if (velotmp < velosum) {                    /* If overflow */
+        errorPrint ("graphCheck: vertex load sum overflow");
+        return     (1);
+      }
+      velosum = velotmp;
     }
   }
   if (grafptr->edgenbr != edgenbr) {

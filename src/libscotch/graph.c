@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2011,2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -54,6 +54,10 @@
 /**                                 to     31 dec 1998     **/
 /**                # Version 4.0  : from : 24 nov 2001     **/
 /**                                 to     22 apr 2004     **/
+/**                # Version 5.1  : from : 08 mar 2011     **/
+/**                                 to     08 mar 2011     **/
+/**                # Version 6.0  : from : 09 sep 2012     **/
+/**                                 to     09 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -135,7 +139,8 @@ Graph * const               grafptr)
     if ((grafptr->velotax != NULL) &&             /* Free graph tables             */
         ((grafptr->flagval & GRAPHVERTGROUP) == 0))
       memFree (grafptr->velotax + grafptr->baseval);
-    if (grafptr->vlbltax != NULL)
+    if ((grafptr->vlbltax != NULL) &&
+        ((grafptr->flagval & GRAPHVERTGROUP) == 0))
       memFree (grafptr->vlbltax + grafptr->baseval);
     if ((grafptr->edlotax != NULL) &&
         ((grafptr->flagval & GRAPHEDGEGROUP) == 0))
@@ -145,23 +150,5 @@ Graph * const               grafptr)
 #ifdef SCOTCH_DEBUG_GRAPH2
   memSet (grafptr, ~0, sizeof (Graph));           /* Purge graph fields */
 #endif /* SCOTCH_DEBUG_GRAPH2 */
-}
-
-/* This routine returns the SCOTCH_PTSCOTCH
-** flag. It is used to detect discrepancies
-** resulting from a mixed use of the libscotch
-** and libptscotch libraries.
-** It returns:
-** - 0  : if not compiled as part of the PT-Scotch library.
-** - 1  : if compiled as part of the PT-Scotch library.
-*/
-
-int
-graphPtscotch ()
-{
-#ifdef SCOTCH_PTSCOTCH
-  return (1);
-#else /* SCOTCH_PTSCOTCH */
-  return (0);
-#endif /* SCOTCH_PTSCOTCH */
+  grafptr->flagval = GRAPHNONE;                   /* Allow to double-call graphFree or call graphExit */
 }

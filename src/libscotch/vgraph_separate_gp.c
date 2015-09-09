@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -46,6 +46,8 @@
 /**                                 to     12 sep 2007     **/
 /**                # Version 5.1  : from : 09 nov 2008     **/
 /**                                 to     09 nov 2008     **/
+/**                # Version 6.0  : from : 10 feb 2011     **/
+/**                                 to     10 feb 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -80,10 +82,6 @@ const VgraphSeparateGpParam * const paraptr)      /*+ Method parameters +*/
 {
   VgraphSeparateGpQueue             queudat;      /* Vertex queue               */
   VgraphSeparateGpVertex * restrict vexxtax;      /* Complementary vertex array */
-  const Gnum * restrict             verttax;
-  const Gnum * restrict             vendtax;
-  const Gnum * restrict             velotax;
-  const Gnum * restrict             edgetax;
   Gnum                              rootnum;
   Gnum                              vertnum;
   Gnum                              fronnum;
@@ -91,6 +89,13 @@ const VgraphSeparateGpParam * const paraptr)      /*+ Method parameters +*/
   Gnum                              compsize2;
   Gnum                              compload2;
   Gnum                              comploaddlt;
+
+  const Gnum * restrict const verttax = grafptr->s.verttax;
+  const Gnum * restrict const vendtax = grafptr->s.vendtax;
+  const Gnum * restrict const velotax = grafptr->s.velotax;
+  const Gnum * restrict const edgetax = grafptr->s.edgetax;
+  GraphPart * restrict const  parttax = grafptr->parttax;
+  Gnum * restrict const       frontab = grafptr->frontab;
 
   if (grafptr->compload[0] != grafptr->s.velosum) /* If not all vertices already in part 0 */
     vgraphZero (grafptr);                         /* Move all graph vertices to part 0     */
@@ -103,10 +108,6 @@ const VgraphSeparateGpParam * const paraptr)      /*+ Method parameters +*/
   }
   memSet (vexxtax, 0, grafptr->s.vertnbr * sizeof (VgraphSeparateGpVertex)); /* Initialize pass numbers */
   vexxtax -= grafptr->s.baseval;
-  verttax  = grafptr->s.verttax;
-  vendtax  = grafptr->s.vendtax;
-  velotax  = grafptr->s.velotax;
-  edgetax  = grafptr->s.edgetax;
 
   compload2   = 0;                                /* All vertices to part 0 */
   comploaddlt = grafptr->s.velosum;
@@ -165,7 +166,7 @@ const VgraphSeparateGpParam * const paraptr)      /*+ Method parameters +*/
     vexxtax[diamnum].passnum = passnum;           /* It has been enqueued         */
     vexxtax[diamnum].distval = 0;
     veloval = (velotax != NULL) ? velotax[diamnum] : 1;
-    grafptr->parttax[diamnum] = 2;                /* Move diameter vertex to separator */
+    parttax[diamnum] = 2;                         /* Move diameter vertex to separator */
     comploaddlt -= veloval;
     compload2   += veloval;
 
@@ -178,7 +179,7 @@ const VgraphSeparateGpParam * const paraptr)      /*+ Method parameters +*/
       vertnum = vgraphSeparateGpQueueGet (&queudat); /* Get vertex from queue */
       veloval = (velotax != NULL) ? velotax[vertnum] : 1;
       distval = vexxtax[vertnum].distval + 1;
-      grafptr->parttax[vertnum] = 1;              /* Move selected vertex from separator to part 1 */
+      parttax[vertnum] = 1;                       /* Move selected vertex from separator to part 1 */
       comploaddlt -= veloval;
       compload2   -= veloval;
 
@@ -192,7 +193,7 @@ const VgraphSeparateGpParam * const paraptr)      /*+ Method parameters +*/
           vgraphSeparateGpQueuePut (&queudat, vertend); /* Enqueue neighbor vertex */
           vexxtax[vertend].passnum = passnum;
           vexxtax[vertend].distval = distval;
-          grafptr->parttax[vertend] = 2;          /* Move neighbor vertex to separator */
+          parttax[vertend] = 2;                   /* Move neighbor vertex to separator */
           comploaddlt -= veloval;
           compload2   += veloval;
         }
@@ -212,11 +213,11 @@ const VgraphSeparateGpParam * const paraptr)      /*+ Method parameters +*/
        vertnum < grafptr->s.vertnnd; vertnum ++) {
     Gnum                partval;
 
-    partval    = (Gnum) grafptr->parttax[vertnum];
+    partval    = (Gnum) parttax[vertnum];
     compsize1 += (partval & 1);                   /* Superscalar update */
     compsize2 += (partval >> 1);
     if (partval == 2)                             /* If vertex belongs to frontier */
-      grafptr->frontab[fronnum ++] = vertnum;     /* Record it in frontier array   */
+      frontab[fronnum ++] = vertnum;              /* Record it in frontier array   */
   }
   grafptr->compsize[0] = grafptr->s.vertnbr - compsize1 - compsize2;
   grafptr->compsize[1] = compsize1;

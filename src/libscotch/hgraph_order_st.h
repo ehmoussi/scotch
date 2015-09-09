@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -45,6 +45,8 @@
 /**                                 to     07 sep 2001     **/
 /**                # Version 4.0  : from : 29 dec 2001     **/
 /**                                 to   : 15 jan 2003     **/
+/**                # Version 6.0  : from : 17 oct 2012     **/
+/**                                 to   : 17 oct 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -60,6 +62,7 @@ typedef enum HgraphOrderStMethodType_ {
   HGRAPHORDERSTMETHGP,                            /*+ Gibbs-Poole-Stockmeyer                +*/
   HGRAPHORDERSTMETHHD,                            /*+ Block Halo Approximate Minimum Degree +*/
   HGRAPHORDERSTMETHHF,                            /*+ Block Halo Approximate Minimum Fill   +*/
+  HGRAPHORDERSTMETHKP,                            /*+ K-way block partitioning              +*/
   HGRAPHORDERSTMETHND,                            /*+ Nested Dissection                     +*/
   HGRAPHORDERSTMETHSI,                            /*+ Simple                                +*/
   HGRAPHORDERSTMETHNBR                            /*+ Number of methods                     +*/

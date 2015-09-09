@@ -1,4 +1,4 @@
-/* Copyright 2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2013 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,12 +34,14 @@
 /**   NAME       : dmapping.c                              **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
-/**                Jun-Ho HER                              **/
+/**                Jun-Ho HER (v6.0)                       **/
 /**                                                        **/
 /**   FUNCTION   : This module handles (partial) mappings. **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 31 mar 2008     **/
 /**                                 to     09 nov 2008     **/
+/**                # Version 6.0  : from : 03 sep 2013     **/
+/**                                 to     03 sep 2013     **/
 /**                                                        **/
 /************************************************************/
 
@@ -235,11 +237,11 @@ Gnum * restrict const           termloctab)
 
   for (vertlocnum = 0, procnum = 0; procnum < grafptr->procglbnbr; ) {
     Gnum                  vertsndnbr;
-    Gnum                  procdspval;
+    Gnum                  procvrtval;
 
     vertsndnbr = 0;
-    procdspval = grafptr->procdsptab[procnum + 1];
-    while (sortsndtab[vertlocnum].vertnum < procdspval) {
+    procvrtval = grafptr->procvrttab[procnum + 1];
+    while (sortsndtab[vertlocnum].vertnum < procvrtval) {
       vertsndnbr ++;
       vertlocnum ++;
 #ifdef SCOTCH_DEBUG_DMAP2
@@ -277,7 +279,7 @@ Gnum * restrict const           termloctab)
 
   memSet (termloctab, ~0, grafptr->vertlocnbr * sizeof (Gnum));
 
-  termloctax = termloctab - grafptr->procdsptab[grafptr->proclocnum]; /* Base local array through global indices */
+  termloctax = termloctab - grafptr->procvrttab[grafptr->proclocnum]; /* Base local array through global indices */
   for (vertlocnum = 0; vertlocnum < grafptr->vertlocnbr; vertlocnum ++) {
 #ifdef SCOTCH_DEBUG_DMAP2
     if (termloctax[sortrcvtab[vertlocnum].vertnum] != ~0) {

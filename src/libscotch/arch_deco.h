@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_deco.h                             **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/
 /**                for the decomposition-defined target    **/
@@ -59,12 +60,17 @@
 /**                                 to     14 jun 2004     **/
 /**                # Version 5.1  : from : 21 jan 2008     **/
 /**                                 to     27 sep 2008     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     01 jul 2014     **/
 /**                                                        **/
 /************************************************************/
 
 /*
 **  The defines.
 */
+
+#ifndef ARCH_DECO_H_STRUCT
+#define ARCH_DECO_H_STRUCT
 
 /*+ Decomposition architecture flags. +*/
 
@@ -104,9 +110,15 @@ typedef struct ArchDecoDom_ {
   Anum                      num;                  /*+ Domain number in the decomposition +*/
 } ArchDecoDom;
 
+#endif /* ARCH_DECO_H_STRUCT */
+
 /*
 **  The function prototypes.
 */
+
+#ifndef ARCH_NOPROTO
+#ifndef ARCH_DECO_H_PROTO
+#define ARCH_DECO_H_PROTO
 
 #ifndef ARCH_DECO
 #define static
@@ -128,6 +140,7 @@ int                         archDecoDomFrst     (const ArchDeco * const, ArchDec
 int                         archDecoDomLoad     (const ArchDeco * const, ArchDecoDom * restrict const, FILE * restrict const);
 int                         archDecoDomSave     (const ArchDeco * const, const ArchDecoDom * const, FILE * restrict const);
 int                         archDecoDomBipart   (const ArchDeco * const, const ArchDecoDom * const, ArchDecoDom * restrict const, ArchDecoDom * restrict const);
+int                         archDecoDomIncl     (const ArchDeco * const, const ArchDecoDom * const, const ArchDecoDom * const);
 #ifdef SCOTCH_PTSCOTCH
 int                         archDecoDomMpiType  (const ArchDeco * const, MPI_Datatype * const);
 #endif /* SCOTCH_PTSCOTCH */
@@ -142,3 +155,6 @@ int                         archDecoDomMpiType  (const ArchDeco * const, MPI_Dat
 #define archDecoArchDist(d,i,j)     ((d)->domdisttab[((i) >= (j)) ? (((i) - 1) * ((i) - 2)) / 2 + (j) - 1 \
                                                                   : (((j) - 1) * ((j) - 2)) / 2 + (i) - 1])
 #define archDecoArchDistE(d,i,j)    (((i) == (j)) ? 0 : archDecoArchDist ((d), (i), (j)))
+
+#endif /* ARCH_DECO_H_PROTO */
+#endif /* ARCH_NOPROTO      */

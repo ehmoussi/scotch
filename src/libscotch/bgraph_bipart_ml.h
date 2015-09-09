@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2010,2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -50,6 +50,8 @@
 /**                                 to     20 mar 2005     **/
 /**                # Version 5.1  : from : 13 jul 2010     **/
 /**                                 to     13 jul 2010     **/
+/**                # Version 6.0  : from : 16 apr 2011     **/
+/**                                 to     03 sep 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -62,7 +64,6 @@
 typedef struct BgraphBipartMlParam_ {
   INT                       coarnbr;              /*+ Minimum number of vertices   +*/
   double                    coarrat;              /*+ Coarsening ratio             +*/
-  GraphCoarsenType          coartype;             /*+ Edge matching function type  +*/
   Strat *                   stratlow;             /*+ Strategy at lowest level     +*/
   Strat *                   stratasc;             /*+ Strategy at ascending levels +*/
 } BgraphBipartMlParam;

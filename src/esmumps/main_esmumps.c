@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2009 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2009,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -44,6 +44,8 @@
 /**                                 to     17 jun 2005     **/
 /**                # Version 5.1  : from : 22 jan 2009     **/
 /**                                 to     22 jan 2009     **/
+/**                # Version 6.0  : from : 01 dec 2012     **/
+/**                                 to     01 dec 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -59,6 +61,8 @@
 #endif /* SCOTCH_PTSCOTCH */
 #include "graph.h"
 #include "esmumps.h"
+
+void                        ESMUMPSF            (const INT * const, const INT * const, INT * const, const INT * const, INT * const, INT * const, INT * const, INT * const, INT * const, INT * const);
 
 /******************************/
 /*                            */

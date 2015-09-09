@@ -1,4 +1,4 @@
-/* Copyright 2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2010,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,13 +34,16 @@
 /**   NAME       : kgraph_map_ml.h                         **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declarations   **/
 /**                for the multi-level graph mapping       **/
 /**                routines.                               **/
 /**                                                        **/
-/**   DATES      : # Version 5.1  : from : 13 jul 2010     **/
-/**                                 to     13 jul 2010     **/
+/**   DATES      : # Version 5.1  : from : 10 jul 2010     **/
+/**                                 to     10 jul 2010     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     01 jun 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -52,10 +55,10 @@
 
 typedef struct KgraphMapMlParam_ {
   INT                       coarnbr;              /*+ Minimum number of vertices   +*/
-  double                    coarrat;              /*+ Coarsening ratio             +*/
-  GraphCoarsenType          coartype;             /*+ Edge matching function type  +*/
+  double                    coarval;              /*+ Coarsening ratio             +*/
   Strat *                   stratlow;             /*+ Strategy at lowest level     +*/
   Strat *                   stratasc;             /*+ Strategy at ascending levels +*/
+  int                       typeval;              /*+ Not used                     +*/
 } KgraphMapMlParam;
 
 /*
@@ -66,8 +69,8 @@ typedef struct KgraphMapMlParam_ {
 #define static
 #endif
 
-static int                  kgraphMapMlCoarsen (const Kgraph * const, Kgraph * restrict const, GraphCoarsenMulti * restrict * const, const KgraphMapMlParam * const);
-static int                  kgraphMapMlUncoarsen (Kgraph * restrict const, Kgraph * restrict const, const GraphCoarsenMulti * const);
+static int                  kgraphMapMlCoarsen  (Kgraph * const, Kgraph * restrict const, GraphCoarsenMulti * restrict * const, const KgraphMapMlParam * const);
+static int                  kgraphMapMlUncoarsen (Kgraph * restrict const, Kgraph * const, const GraphCoarsenMulti * const);
 
 int                         kgraphMapMl         (Kgraph * restrict const, const KgraphMapMlParam * const);
 static int                  kgraphMapMl2        (Kgraph * restrict const, const KgraphMapMlParam * const);

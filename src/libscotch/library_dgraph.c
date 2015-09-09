@@ -1,4 +1,4 @@
-/* Copyright 2007,2009,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2009,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -43,6 +43,8 @@
 /**                                 to     14 apr 2008     **/
 /**                # Version 5.1  : from : 26 mar 2009     **/
 /**                                 to     17 nov 2010     **/
+/**                # Version 6.0  : from : 27 nov 2012     **/
+/**                                 to     29 nov 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -56,7 +58,7 @@
 #include "common.h"
 #include "graph.h"                                /* For graphPtscotch() */
 #include "dgraph.h"
-#include "scotch.h"
+#include "ptscotch.h"
 
 /****************************************/
 /*                                      */
@@ -97,10 +99,6 @@ MPI_Comm                    proccomm)             /* Communicator to be used for
   int                 thrdlvlval;
 #endif /* SCOTCH_PTHREAD */
 
-  if (graphPtscotch () != 1) {
-    errorPrint ("SCOTCH_dgraphInit: linking with both libScotch and libPTScotch is not allowed");
-    return     (1);
-  }
 #ifdef SCOTCH_PTHREAD
   MPI_Query_thread (&thrdlvlval);
   if (thrdlvlval < MPI_THREAD_MULTIPLE) {

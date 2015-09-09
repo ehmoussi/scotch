@@ -1,4 +1,4 @@
-/* Copyright 2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -43,6 +43,8 @@
 /**                                 to     17 oct 2007     **/
 /**                # Version 5.1  : from : 30 jun 2010     **/
 /**                                 to     30 jun 2010     **/
+/**                # Version 6.0  : from : 13 sep 2012     **/
+/**                                 to     13 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -70,13 +72,13 @@
 
 FORTRAN (                                                         \
 METISNAMEU(PARMETIS_V3_NODEND), METISNAMEL(parmetis_v3_nodend), ( \
-const int * const           vtxdist,                              \
-int * const                 xadj,                                 \
-int * const                 adjncy,                               \
-const int * const           numflag,                              \
-const int * const           options,                              \
-int * const                 order,                                \
-int * const                 sizes,                                \
+const SCOTCH_Num * const    vtxdist,                              \
+SCOTCH_Num * const          xadj,                                 \
+SCOTCH_Num * const          adjncy,                               \
+const SCOTCH_Num * const    numflag,                              \
+const SCOTCH_Num * const    options,                              \
+SCOTCH_Num * const          order,                                \
+SCOTCH_Num * const          sizes,                                \
 MPI_Comm * const            commptr),                             \
 (vtxdist, xadj, adjncy, numflag, options, order, sizes, commptr))
 {

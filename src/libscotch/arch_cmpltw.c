@@ -1,4 +1,4 @@
-/* Copyright 2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2008,2010,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,12 +34,15 @@
 /**   NAME       : arch_cmpltw.c                           **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module handles the weighted        **/
 /**                complete graph target architecture.     **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 11 dec 2007     **/
 /**                                 to     11 aug 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     23 sep 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -76,8 +79,8 @@ ArchCmpltwLoad * restrict const vesotab,
 Anum                            vertnbr,
 Anum                            velosum)
 {
-  Gnum                velosum0;
-  Gnum                velosum1;
+  Anum                velosum0;
+  Anum                velosum1;
   Anum                vertnbr0;
   Anum                vertnbr1;
   Anum                vertnum0;
@@ -151,11 +154,11 @@ ArchCmpltw * restrict const archptr)
 int
 archCmpltwArchBuild (
 ArchCmpltw * restrict const archptr,
-const Gnum                  vertnbr,              /* Gnum since to be called from the library */
-const Gnum * restrict const velotab)              /* Gnum since to be called from the library */
+const Anum                  vertnbr,
+const Anum * restrict const velotab)
 {
   Anum                vertnum;
-  Gnum                velosum;
+  Anum                velosum;
 
 #ifdef SCOTCH_DEBUG_ARCH1
   if ((sizeof (ArchCmpltw)    > sizeof (ArchDummy)) ||
@@ -178,7 +181,7 @@ const Gnum * restrict const velotab)              /* Gnum since to be called fro
   }
 
   for (vertnum = 0, velosum = 0; vertnum < archptr->vertnbr; vertnum ++) { /* Fill vertex load array */
-    Gnum                veloval;
+    Anum                veloval;
 
     veloval  = velotab[vertnum];
     velosum += veloval;
@@ -203,7 +206,7 @@ ArchCmpltw * restrict const  archptr,
 FILE * restrict const       stream)
 {
   long                vertnbr;
-  Gnum                velosum;
+  Anum                velosum;
   Anum                vertnum;
 
 #ifdef SCOTCH_DEBUG_ARCH1
@@ -228,7 +231,7 @@ FILE * restrict const       stream)
 
   for (vertnum = 0, velosum = 0; vertnum < archptr->vertnbr; vertnum ++) {
     long                veloval;
-    Gnum                velotmp;
+    Anum                velotmp;
 
     if ((fscanf (stream, "%ld", &veloval) != 1) ||
         (veloval < 1)) {
@@ -236,7 +239,7 @@ FILE * restrict const       stream)
       return     (1);
     }
 
-    velotmp  = (Gnum) veloval;
+    velotmp  = (Anum) veloval;
     velosum += velotmp;
     archptr->velotab[vertnum].veloval = velotmp;
     archptr->velotab[vertnum].vertnum = vertnum;
@@ -534,6 +537,27 @@ ArchCmpltwDom * restrict const  dom1ptr)
   dom1ptr->vertnbr = domptr->vertnbr - dom0ptr->vertnbr;
   dom0ptr->veloval = domptr->veloval - velosum1;
   dom1ptr->veloval = velosum1;
+
+  return (0);
+}
+
+/* This function checks if dom1 is
+** included in dom0.
+** It returns:
+** - 0  : if dom1 is not included in dom0.
+** - 1  : if dom1 is included in dom0.
+** - 2  : on error.
+*/
+
+int
+archCmpltwDomIncl (
+const ArchCmpltw * const    archptr,
+const ArchCmpltwDom * const dom0ptr,
+const ArchCmpltwDom * const dom1ptr)
+{
+  if ((dom1ptr->vertmin >= dom0ptr->vertmin) &&
+      ((dom1ptr->vertmin + dom1ptr->vertnbr) <= (dom0ptr->vertmin + dom0ptr->vertnbr)))
+    return (1);
 
   return (0);
 }

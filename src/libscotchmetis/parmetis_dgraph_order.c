@@ -1,4 +1,4 @@
-/* Copyright 2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -43,6 +43,8 @@
 /**                                 to     07 dec 2007     **/
 /**                # Version 5.1  : from : 18 mar 2009     **/
 /**                                 to     30 jun 2010     **/
+/**                # Version 6.0  : from : 13 sep 2012     **/
+/**                                 to     13 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -68,15 +70,15 @@
 static
 void
 _SCOTCH_ParMETIS_V3_NodeNDTree (
-int * const                 sizeglbtnd,
+SCOTCH_Num * const          sizeglbtnd,
 SCOTCH_Num * const          sizeglbtab,
 SCOTCH_Num * const          sepaglbtab,
-const int                   levlmax,
-const int                   levlnum,
-const int                   cblknum,
-int                         cblkidx)
+const SCOTCH_Num            levlmax,
+const SCOTCH_Num            levlnum,
+const SCOTCH_Num            cblknum,
+SCOTCH_Num                  cblkidx)
 {
-  int                 sizeval;
+  SCOTCH_Num          sizeval;
 
   sizeval = sizeglbtab[cblknum];                  /* Assume node is terminal or has no nested dissection sons */
   if (levlnum < levlmax) {
@@ -97,13 +99,13 @@ int                         cblkidx)
 
 void
 METISNAMEU(ParMETIS_V3_NodeND) (
-const int * const           vtxdist,
-int * const                 xadj,
-int * const                 adjncy,
-const int * const           numflag,
-const int * const           options,              /* Not used */
-int * const                 order,
-int * const                 sizes,                /* Of size twice the number of processors ; not used */
+const SCOTCH_Num * const    vtxdist,
+SCOTCH_Num * const          xadj,
+SCOTCH_Num * const          adjncy,
+const SCOTCH_Num * const    numflag,
+const SCOTCH_Num * const    options,              /* Not used */
+SCOTCH_Num * const          order,
+SCOTCH_Num * const          sizes,                /* Of size twice the number of processors ; not used */
 MPI_Comm *                  comm)
 {
   MPI_Comm            proccomm;
@@ -116,11 +118,6 @@ MPI_Comm *                  comm)
   SCOTCH_Num          vertlocnbr;
   SCOTCH_Num          edgelocnbr;
 
-  if (sizeof (SCOTCH_Num) != sizeof (int)) {
-    SCOTCH_errorPrint ("ParMETIS_V3_NodeND (as of SCOTCH): SCOTCH_Num type should equate to int");
-    return;
-  }
-
   proccomm = *comm;
   if (SCOTCH_dgraphInit (&grafdat, proccomm) != 0)
     return;
@@ -132,7 +129,7 @@ MPI_Comm *                  comm)
   edgelocnbr = xadj[vertlocnbr] - baseval;
 
   if (sizes != NULL)
-    memSet (sizes, ~0, (2 * procglbnbr - 1) * sizeof (int)); /* Array not used if procglbnbr is not a power of 2 or if error */
+    memSet (sizes, ~0, (2 * procglbnbr - 1) * sizeof (SCOTCH_Num)); /* Array not used if procglbnbr is not a power of 2 or if error */
 
   if (SCOTCH_dgraphBuild (&grafdat, baseval,
                           vertlocnbr, vertlocnbr, xadj, xadj + 1, NULL, NULL,
@@ -143,8 +140,8 @@ MPI_Comm *                  comm)
 #endif /* SCOTCH_DEBUG_ALL */
     {
       if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) == 0) {
-        int                 levlmax;
-        int                 bitsnbr;
+        SCOTCH_Num          levlmax;
+        SCOTCH_Num          bitsnbr;
         SCOTCH_Num          proctmp;
 
         SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat);
@@ -184,10 +181,10 @@ MPI_Comm *                  comm)
                     rootnum = cblknum;            /* Record index of root node */
                   }
                   else {
-                    int                 i;
+                    SCOTCH_Num          i;
 
                     for (i = 0; i < 3; i ++) {
-                      int                 j;
+                      SCOTCH_Num          j;
 
                       j = 3 * fathnum + i;        /* Slot number of prospective son  */
                       if (sepaglbtab[j] < 0) {    /* If potentially empty slot found */
@@ -203,8 +200,8 @@ MPI_Comm *                  comm)
                   }
                 }
 
-                if ((rootnum >= 0) && (sizes != NULL)) { /* If no error above, go on processing separator tree  */
-                  memSet (sizes, 0, (2 * procglbnbr - 1) * sizeof (int)); /* Set array of sizes to 0 by default */
+                if ((rootnum >= 0) && (sizes != NULL)) { /* If no error above, go on processing separator tree         */
+                  memSet (sizes, 0, (2 * procglbnbr - 1) * sizeof (SCOTCH_Num)); /* Set array of sizes to 0 by default */
                   _SCOTCH_ParMETIS_V3_NodeNDTree (sizes + (2 * procglbnbr - 1), sizeglbtab, sepaglbtab, levlmax, 0, rootnum, 1);
                 }
               }

@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2010,2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -48,6 +48,8 @@
 /**                                 to     25 jul 2007     **/
 /**                # Version 5.1  : from : 24 oct 2010     **/
 /**                                 to     24 oct 2010     **/
+/**                # Version 6.0  : from : 17 oct 2012     **/
+/**                                 to     05 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -95,21 +97,7 @@ const HgraphOrderNdParam * restrict const paraptr)
   Gnum                      vspvertnum;           /* Current vertex in separation graph */
   int                       o;
 
-  vspgrafdat.s.flagval = GRAPHNONE;               /* Do not free contents of separation graph   */
-  vspgrafdat.s.baseval = grafptr->s.baseval;
-  vspgrafdat.s.vertnbr = grafptr->vnohnbr;        /* Keep only non-halo vertices for separation */
-  vspgrafdat.s.vertnnd = grafptr->vnohnnd;
-  vspgrafdat.s.verttax = grafptr->s.verttax;
-  vspgrafdat.s.vendtax = grafptr->vnhdtax;
-  vspgrafdat.s.velotax = grafptr->s.velotax;
-  vspgrafdat.s.velosum = grafptr->vnlosum;
-  vspgrafdat.s.vnumtax = grafptr->s.vnumtax;
-  vspgrafdat.s.vlbltax = NULL;
-  vspgrafdat.s.edgenbr = grafptr->enohnbr;
-  vspgrafdat.s.edgetax = grafptr->s.edgetax;
-  vspgrafdat.s.edlotax = grafptr->s.edlotax;
-  vspgrafdat.s.edlosum = grafptr->enohsum;
-  vspgrafdat.s.degrmax = grafptr->s.degrmax;
+  hgraphUnhalo (grafptr, &vspgrafdat.s);          /* Keep only non-halo vertices for separation */
 
   if ((vspgrafdat.frontab = (Gnum *) memAlloc (vspgrafdat.s.vertnbr * sizeof (Gnum))) == NULL) {
     errorPrint ("hgraphOrderNd: out of memory (1)");

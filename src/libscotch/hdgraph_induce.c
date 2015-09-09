@@ -241,8 +241,8 @@ Hdgraph * restrict const    indgrafptr)
     Gnum                inddegrlocval;
     Gnum                indedgelocnnd;
 
-    orgvertlocnum  = indlisttax[indvertlocnum];
-    orgdegrlocval  = orgvendloctax[orgvertlocnum] - orgvertloctax[orgvertlocnum];
+    orgvertlocnum = indlisttax[indvertlocnum];
+    orgdegrlocval = orgvendloctax[orgvertlocnum] - orgvertloctax[orgvertlocnum];
 
     indvertloctax[indvertlocnum] = indedgelocnum;
     if (orgveloloctax != NULL) {                  /* If graph has vertex weights */

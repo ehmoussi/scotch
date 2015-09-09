@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : bdgraph_store.c                         **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                Francois PELLEGRINI                     **/
 /**                                                        **/
 /**   FUNCTION   : This module contains the save data      **/
@@ -42,6 +42,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 10 sep 2007     **/
 /**                                 to     22 oct 2008     **/
+/**                # Version 6.0  : from : 11 sep 2011     **/
+/**                                 to     11 sep 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -169,6 +171,7 @@ const BdgraphStore * const  storptr)
   grafptr->compglbsize0    = storptr->compglbsize0;
   grafptr->commglbload     = storptr->commglbload;
   grafptr->commglbgainextn = storptr->commglbgainextn;
+  grafptr->bbalglbval      = (double) ((grafptr->compglbload0dlt < 0) ? (- grafptr->compglbload0dlt) : grafptr->compglbload0dlt) / (double) grafptr->compglbload0avg;
 
   fronloctab = storptr->datatab;                  /* Compute data offsets within save structure */
   partloctab = fronloctab + grafptr->fronlocnbr * sizeof (Gnum);

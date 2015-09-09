@@ -1,4 +1,4 @@
-/* Copyright 2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -39,7 +39,9 @@
 /**                graph from the given frontier array.    **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 11 nov 2007     **/
-/**                                 to   : 04 nov 2010     **/
+/**                                 to   : 20 feb 2011     **/
+/**                # Version 6.0  : from : 03 apr 2012     **/
+/**                                 to   : 26 sep 2012     **/
 /**                                                        **/
 /**   NOTES      : # This code derives from the code of    **/
 /**                  vdgraph_separate_bd.c in version 5.0. **/
@@ -62,529 +64,25 @@
 /*                                */
 /**********************************/
 
-/* This routine computes a distributed index array
-** of given width around the current separator,
-** using collective communication.
-** It returns:
-** - 0   : if the index array could be computed.
-** - !0  : on error.
-*/
-
-int
-dgraphBandColl (
-Dgraph * restrict const           grafptr,        /*+ Distributed graph                                        +*/
-const Gnum                        queulocnbr,     /*+ Number of frontier vertices, start size for vertex queue +*/
-Gnum * restrict const             queuloctab,     /*+ Array of frontier vertices, re-used as queue array       +*/
-const Gnum                        distmax,        /*+ Maximum distance from separator vertices                 +*/
-Gnum * restrict * restrict const  vnumgstptr,     /*+ Pointer to vnumgsttax                                    +*/
-Gnum * restrict const             bandvertlvlptr, /*+ Pointer to based start index of last level               +*/
-Gnum * restrict const             bandvertlocptr, /*+ Pointer to bandvertlocnnd                                +*/
-Gnum * restrict const             bandedgelocptr) /*+ Pointer to bandedgelocnbr                                +*/
-{
-  Gnum                    queulocnum;
-  Gnum                    vertlocnnd;
-  Gnum * restrict         vnumgsttax;             /* Index array for vertices kept in band graph */
-  Gnum                    vnumgstsiz;             /* Size of vnumgsttax; TRICK: re-use           */
-  Gnum *                  vrcvdattab;             /* Data arrays [norestrict:async]              */
-  Gnum * restrict         vsnddattab;
-  Gnum * restrict         procvgbtab;             /* Array of neighbor bounds [+1]               */
-  int                     procngbnbr;
-  int                     procngbnum;
-  int * restrict          vrcvcnttab;
-  int * restrict          vsndcnttab;
-  int * restrict          vrcvdsptab;
-  int * restrict          vsnddsptab;
-  int * restrict          nsndidxtab;
-  int                     vrcvdspnum;
-  int                     vsnddspnum;
-  Gnum                    queuheadidx;            /* Index of head of queue                      */
-  Gnum                    queutailidx;            /* Index of tail of queue                      */
-  Gnum                    bandvertlvlnum;
-  Gnum                    bandvertlocnnd;
-  Gnum                    bandedgelocnbr;
-  Gnum                    distval;
-#ifdef SCOTCH_DEBUG_DGRAPH1
-  Gnum                    reduloctab[3];
-  Gnum                    reduglbtab[3];
-#else /* SCOTCH_DEBUG_DGRAPH1 */
-  Gnum                    reduglbtab[1];
-#endif /* SCOTCH_DEBUG_DGRAPH1 */
-
-  const Gnum * restrict const vertloctax = grafptr->vertloctax;
-  const Gnum * restrict const vendloctax = grafptr->vendloctax;
-  const Gnum * restrict const edgegsttax = grafptr->edgegsttax;
-  const Gnum * restrict const edgeloctax = grafptr->edgeloctax;
-
-  procngbnbr = grafptr->procngbnbr;
-
-  reduglbtab[0] = 0;                             /* Assume everything is all right */
-  vnumgstsiz    = MAX ((grafptr->vertgstnbr * sizeof (Gnum)), (grafptr->procglbnbr * sizeof (int))); /* TRICK: re-use array for further error collective communications */
-  if (((vnumgsttax = memAlloc (vnumgstsiz)) == NULL) ||
-      (memAllocGroup ((void **) (void *)
-                      &procvgbtab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)),
-                      &nsndidxtab, (size_t) (procngbnbr * sizeof (int)),
-                      &vrcvcnttab, (size_t) (grafptr->procglbnbr * sizeof (int)),
-                      &vsndcnttab, (size_t) (grafptr->procglbnbr * sizeof (int)), /* TRICK: vsndcnttab, vrcvdsptab, vrcvdattab, vrcvdattab joined */
-                      &vrcvdsptab, (size_t) (grafptr->procglbnbr * sizeof (int)),
-                      &vsnddsptab, (size_t) (grafptr->procglbnbr * sizeof (int)),
-                      &vrcvdattab, (size_t) (grafptr->procsndnbr * sizeof (Gnum)), /* Senders and receivers inverted because we send local, not halo vertices */
-                      &vsnddattab, (size_t) ((grafptr->vertgstnbr - grafptr->vertlocnbr) * sizeof (Gnum)), NULL) == NULL)) {
-    errorPrint ("dgraphBandColl: out of memory (1)");
-    reduglbtab[0] = 1;
-  }
-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication not needed and not absorbable by the algorithm */
-  reduloctab[0] = reduglbtab[0];
-  reduloctab[1] =   distmax;
-  reduloctab[2] = - distmax;
-  if (MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
-    errorPrint ("dgraphBandColl: communication error (1)");
-    return     (1);
-  }
-  if (reduglbtab[1] != - reduglbtab[2]) {
-    errorPrint ("dgraphBandColl: invalid parameters");
-    reduglbtab[0] = 1;
-  }
-#endif /* SCOTCH_DEBUG_DGRAPH1 */
-  if (reduglbtab[0] != 0) {
-    if (vnumgsttax != NULL) {
-      if (procvgbtab != NULL)
-        memFree (procvgbtab);                     /* Free group leader */
-      memFree (vnumgsttax);
-    }
-    return (1);
-  }
-
-  memSet (vsndcnttab, 0, (((int *) vrcvdattab) - vsndcnttab) * sizeof (int)); /* TRICK: vsndcnttab, vrcvdsptab, vrcvdattab, vrcvdattab joined */
-
-  for (procngbnum = 0, vrcvdspnum = vsnddspnum = 0; /* Build communication index arrays */
-       procngbnum < procngbnbr; procngbnum ++) {
-    int                 procglbnum;
-
-    procglbnum = grafptr->procngbtab[procngbnum];
-    procvgbtab[procngbnum] = grafptr->procvrttab[procglbnum];
-    vrcvdsptab[procglbnum] = vrcvdspnum;
-    vsnddsptab[procglbnum] = vsnddspnum;
-    vrcvdspnum += grafptr->procsndtab[procglbnum]; /* Senders and receivers are reversed */
-    vsnddspnum += grafptr->procrcvtab[procglbnum];
-  }
-  procvgbtab[procngbnum] = grafptr->procvrttab[grafptr->procglbnbr];
-
-  bandvertlvlnum =                                /* Start index of last level is start index */
-  bandvertlocnnd = grafptr->baseval;              /* Reset number of band vertices, plus base */
-  bandedgelocnbr = 0;
-  memSet (vnumgsttax, ~0, grafptr->vertgstnbr * sizeof (Gnum)); /* Reset part array */
-  vnumgsttax -= grafptr->baseval;
-
-  vertlocnnd = grafptr->vertlocnnd;
-  for (queulocnum = 0; queulocnum < queulocnbr; queulocnum ++) { /* All frontier vertices will be first vertices of band graph */
-    Gnum              vertlocnum;
-
-    vertlocnum = queuloctab[queulocnum];
-    vnumgsttax[vertlocnum] = bandvertlocnnd ++;   /* Keep frontier vertex in band               */
-    bandedgelocnbr += vendloctax[vertlocnum] - vertloctax[vertlocnum]; /* Account for its edges */
-  }
-  queuheadidx = 0;                                /* No queued vertex read yet                  */
-  queutailidx = queulocnbr;                       /* All frontier vertices are already in queue */
-
-  for (distval = 0; ++ distval <= distmax; ) {
-    Gnum              queunextidx;                /* Tail index for enqueuing vertices of next band */
-    int               procngbnum;
-
-    bandvertlvlnum = bandvertlocnnd;              /* Save start index of current level, based */
-    *bandvertlvlptr = bandvertlvlnum;
-
-    for (procngbnum = 0; procngbnum < procngbnbr; procngbnum ++) /* Build communication index arrays */
-      nsndidxtab[procngbnum] = vsnddsptab[grafptr->procngbtab[procngbnum]];
-
-    for (queunextidx = queutailidx; queuheadidx < queutailidx; ) { /* For all vertices in queue */
-      Gnum              vertlocnum;
-      Gnum              edgelocnum;
-
-      vertlocnum = queuloctab[queuheadidx ++];    /* Dequeue vertex */
-      for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
-        Gnum              vertlocend;
-
-        vertlocend = edgegsttax[edgelocnum];
-        if (vnumgsttax[vertlocend] != ~0)         /* If end vertex has already been processed */
-          continue;                               /* Skip to next vertex                      */
-
-        if (vertlocend < vertlocnnd) {            /* If end vertex is local                           */
-          vnumgsttax[vertlocend] = bandvertlocnnd ++; /* Label vertex as enqueued                     */
-          queuloctab[queunextidx ++] = vertlocend; /* Enqueue vertex for next pass                    */
-          bandedgelocnbr += vendloctax[vertlocend] - vertloctax[vertlocend]; /* Account for its edges */
-        }
-        else {                                    /* End vertex is a ghost */
-          Gnum              vertglbend;
-          int               procngbnum;
-          int               procngbmax;
-
-          vnumgsttax[vertlocend] = 0;             /* Label ghost vertex as enqueued  */
-          vertglbend = edgeloctax[edgelocnum];    /* Get global number of end vertex */
-
-          procngbnum = 0;
-          procngbmax = procngbnbr;
-          while ((procngbmax - procngbnum) > 1) { /* Find owner process by dichotomy on procvgbtab */
-            int                 procngbmed;
-
-            procngbmed = (procngbmax + procngbnum) / 2;
-            if (procvgbtab[procngbmed] > vertglbend)
-              procngbmax = procngbmed;
-            else
-              procngbnum = procngbmed;
-          }
-#ifdef SCOTCH_DEBUG_DGRAPH2
-          if ((grafptr->procvrttab[grafptr->procngbtab[procngbnum]]     >  vertglbend) ||
-              (grafptr->procvrttab[grafptr->procngbtab[procngbnum] + 1] <= vertglbend) ||
-              (nsndidxtab[procngbnum] >= (vsnddsptab[grafptr->procngbtab[procngbnum]] + grafptr->procrcvtab[grafptr->procngbtab[procngbnum]]))) {
-            errorPrint ("dgraphBandColl: internal error (1)");
-            return     (1);
-          }
-#endif /* SCOTCH_DEBUG_DGRAPH2 */
-          vsnddattab[nsndidxtab[procngbnum] ++] = vertglbend - procvgbtab[procngbnum] + grafptr->baseval; /* Buffer local value on neighbor processor */
-        }
-      }
-    }
-
-    for (procngbnum = 0; procngbnum < procngbnbr; procngbnum ++) {
-      int                 procglbnum;
-
-      procglbnum = grafptr->procngbtab[procngbnum];
-      vsndcnttab[procglbnum] = nsndidxtab[procngbnum] - vsnddsptab[procglbnum];
-    }
-
-    if (MPI_Alltoall (vsndcnttab, 1, MPI_INT, vrcvcnttab, 1, MPI_INT, grafptr->proccomm) != MPI_SUCCESS) {
-      errorPrint ("dgraphBandColl: communication error (2)");
-      return     (1);
-    }
-    if (MPI_Alltoallv (vsnddattab, vsndcnttab, vsnddsptab, GNUM_MPI,
-                       vrcvdattab, vrcvcnttab, vrcvdsptab, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
-      errorPrint ("dgraphBandColl: communication error (3)");
-      return     (1);
-    }
-
-    for (procngbnum = 0; procngbnum < procngbnbr; procngbnum ++) { /* For all receive buffers */
-      Gnum * restrict   vrcvdatptr;
-      int               vertrcvnum;
-      int               procglbnum;
-      int               statsiz;
-
-      procglbnum = grafptr->procngbtab[procngbnum];
-      vrcvdatptr = vrcvdattab + vrcvdsptab[procglbnum];
-      statsiz    = vrcvcnttab[procglbnum];
-      for (vertrcvnum = 0; vertrcvnum < statsiz; vertrcvnum ++) {
-        Gnum              vertlocend;
-
-        vertlocend = vrcvdatptr[vertrcvnum];      /* Get local vertex from message */
-#ifdef SCOTCH_DEBUG_DGRAPH2
-        if ((vertlocend < grafptr->baseval) || (vertlocend >= vertlocnnd)) {
-          errorPrint ("dgraphBandColl: internal error (2)");
-          return     (1);
-        }
-#endif /* SCOTCH_DEBUG_DGRAPH2 */
-        if (vnumgsttax[vertlocend] != ~0)         /* If end vertex has already been processed */
-          continue;                               /* Skip to next vertex                      */
-
-        vnumgsttax[vertlocend] = bandvertlocnnd ++; /* Label vertex as enqueued                     */
-        queuloctab[queunextidx ++] = vertlocend;  /* Enqueue vertex for next pass                   */
-        bandedgelocnbr += vendloctax[vertlocend] - vertloctax[vertlocend]; /* Account for its edges */
-      }
-    }
-
-    queutailidx = queunextidx;                    /* Prepare queue for next sweep */
-  }
-
-  memFree (procvgbtab);                           /* Free group leader */
-
-  *vnumgstptr     = vnumgsttax;
-  *bandvertlocptr = bandvertlocnnd - grafptr->baseval;
-  *bandedgelocptr = bandedgelocnbr;
-
-  return (0);
-}
-
-/* This routine computes a distributed index array
-** of given width around the current separator,
-** using point-to-point communication.
-** It returns:
-** - 0   : if the index array could be computed.
-** - !0  : on error.
-*/
-
-int
-dgraphBandPtop (
-Dgraph * restrict const           grafptr,        /*+ Distributed graph                                        +*/
-const Gnum                        queulocnbr,     /*+ Number of frontier vertices, start size for vertex queue +*/
-Gnum * restrict const             queuloctab,     /*+ Array of frontier vertices, re-used as queue array       +*/
-const Gnum                        distmax,        /*+ Maximum distance from separator vertices                 +*/
-Gnum * restrict * restrict const  vnumgstptr,     /*+ Pointer to vnumgsttax                                    +*/
-Gnum * restrict const             bandvertlvlptr, /*+ Pointer to based start index of last level               +*/
-Gnum * restrict const             bandvertlocptr, /*+ Pointer to bandvertlocnnd                                +*/
-Gnum * restrict const             bandedgelocptr) /*+ Pointer to bandedgelocnbr                                +*/
-{
-  Gnum                    queulocnum;
-  Gnum                    vertlocnnd;
-  Gnum * restrict         vnumgsttax;             /* Index array for vertices kept in band graph */
-  Gnum                    vnumgstsiz;             /* Size of vnumgsttax; TRICK: re-use           */
-  Gnum *                  vrcvdattab;             /* Data arrays [norestrict:async]              */
-  Gnum *                  vsnddattab;
-  Gnum * restrict         procvgbtab;             /* Array of neighbor bounds [+1]               */
-  int                     procngbnbr;
-  int                     procngbnum;
-  int                     procngbnxt;
-  Gnum * restrict         nrcvdsptab;
-  Gnum * restrict         nsnddsptab;
-  Gnum                    nrcvdspnum;
-  Gnum                    nsnddspnum;
-  Gnum * restrict         nsndidxtab;
-  Gnum                    queuheadidx;            /* Index of head of queue                      */
-  Gnum                    queutailidx;            /* Index of tail of queue                      */
-  MPI_Request *           nrcvreqtab;             /* Array of receive requests                   */
-  MPI_Request *           nsndreqtab;             /* Array of receive requests                   */
-  Gnum                    bandvertlvlnum;
-  Gnum                    bandvertlocnnd;
-  Gnum                    bandedgelocnbr;
-  Gnum                    distval;
-#ifdef SCOTCH_DEBUG_DGRAPH1
-  Gnum                    reduloctab[3];
-  Gnum                    reduglbtab[3];
-#else /* SCOTCH_DEBUG_DGRAPH1 */
-  Gnum                    reduglbtab[1];
-#endif /* SCOTCH_DEBUG_DGRAPH1 */
-
-  const Gnum * restrict const vertloctax = grafptr->vertloctax;
-  const Gnum * restrict const vendloctax = grafptr->vendloctax;
-  const Gnum * restrict const edgegsttax = grafptr->edgegsttax;
-  const Gnum * restrict const edgeloctax = grafptr->edgeloctax;
-
-  procngbnbr = grafptr->procngbnbr;
-
-  reduglbtab[0] = 0;                             /* Assume everything is all right */
-  vnumgstsiz    = MAX ((grafptr->vertgstnbr * sizeof (Gnum)), (grafptr->procglbnbr * sizeof (int))); /* TRICK: re-use array for further error collective communications */
-  if (((vnumgsttax = memAlloc (vnumgstsiz)) == NULL) ||
-      (memAllocGroup ((void **) (void *)
-                      &procvgbtab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)),
-                      &nrcvdsptab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)), /* +1 to check against end of array */
-                      &nsnddsptab, (size_t) ((procngbnbr + 1) * sizeof (Gnum)), /* +1 to check against end of array */
-                      &nsndidxtab, (size_t) (procngbnbr * sizeof (Gnum)), /* Here Gnum's since point-to-point       */
-                      &nrcvreqtab, (size_t) (procngbnbr * sizeof (MPI_Request)),
-                      &nsndreqtab, (size_t) (procngbnbr * sizeof (MPI_Request)),
-                      &vrcvdattab, (size_t) (grafptr->procsndnbr * sizeof (Gnum)), /* Senders and receivers inverted because we send local, not halo vertices */
-                      &vsnddattab, (size_t) ((grafptr->vertgstnbr - grafptr->vertlocnbr) * sizeof (Gnum)), NULL) == NULL)) {
-    errorPrint ("dgraphBandPtop: out of memory (1)");
-    reduglbtab[0] = 1;
-  }
-#ifdef SCOTCH_DEBUG_DGRAPH1                       /* Communication not needed and not absorbable by the algorithm */
-  reduloctab[0] = reduglbtab[0];
-  reduloctab[1] =   distmax;
-  reduloctab[2] = - distmax;
-  if (MPI_Allreduce (reduloctab, reduglbtab, 3, GNUM_MPI, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
-    errorPrint ("dgraphBandPtop: communication error (1)");
-    return     (1);
-  }
-  if (reduglbtab[1] != - reduglbtab[2]) {
-    errorPrint ("dgraphBandPtop: invalid parameters");
-    reduglbtab[0] = 1;
-  }
-#endif /* SCOTCH_DEBUG_DGRAPH1 */
-  if (reduglbtab[0] != 0) {
-    if (vnumgsttax != NULL) {
-      if (procvgbtab != NULL)
-        memFree (procvgbtab);                     /* Free group leader */
-      memFree (vnumgsttax);
-    }
-    return (1);
-  }
-
-  for (procngbnum = 0, nrcvdspnum = nsnddspnum = procngbnxt = 0; /* Build communication index arrays */
-       procngbnum < procngbnbr; procngbnum ++) {
-    int                 procglbnum;
-
-    procglbnum = grafptr->procngbtab[procngbnum];
-    if ((procngbnxt == 0) && (procglbnum > grafptr->proclocnum)) /* Find index of first neighbor of higher rank */
-      procngbnxt = procngbnum;
-    procvgbtab[procngbnum] = grafptr->procvrttab[procglbnum];
-    nrcvdsptab[procngbnum] = nrcvdspnum;          /* Arrays are indexed per neighbor since we are doing point-to-point communication */
-    nsnddsptab[procngbnum] = nsnddspnum;
-    nrcvdspnum += grafptr->procsndtab[procglbnum]; /* Senders and receivers are reversed */
-    nsnddspnum += grafptr->procrcvtab[procglbnum];
-  }
-  procvgbtab[procngbnum] = grafptr->procvrttab[grafptr->procglbnbr];
-  nrcvdsptab[procngbnum] = nrcvdspnum;            /* Mark end of communication index arrays */
-  nsnddsptab[procngbnum] = nsnddspnum;
-
-  procngbnum = procngbnxt;                        /* Create receive requests in descending order */
-  do {
-    procngbnum = (procngbnum + (procngbnbr - 1)) % procngbnbr; /* Pre-decrement neighbor rank */
-    if (MPI_Recv_init (vrcvdattab + nrcvdsptab[procngbnum], (int) (nrcvdsptab[procngbnum + 1] - nrcvdsptab[procngbnum]), GNUM_MPI,
-                       grafptr->procngbtab[procngbnum], TAGBAND,
-                       grafptr->proccomm, nrcvreqtab + procngbnum) != MPI_SUCCESS) {
-      errorPrint ("dgraphBandPtop: communication error (2)");
-      return     (1);
-    }
-  } while (procngbnum != procngbnxt);
-
-  bandvertlvlnum =                                /* Start index of last level is start index */
-  bandvertlocnnd = grafptr->baseval;              /* Reset number of band vertices, plus base */
-  bandedgelocnbr = 0;
-  memSet (vnumgsttax, ~0, grafptr->vertgstnbr * sizeof (Gnum)); /* Reset part array */
-  vnumgsttax -= grafptr->baseval;
-
-  vertlocnnd = grafptr->vertlocnnd;
-  for (queulocnum = 0; queulocnum < queulocnbr; queulocnum ++) { /* All frontier vertices will be first vertices of band graph */
-    Gnum              vertlocnum;
-
-    vertlocnum = queuloctab[queulocnum];
-    vnumgsttax[vertlocnum] = bandvertlocnnd ++;   /* Keep frontier vertex in band               */
-    bandedgelocnbr += vendloctax[vertlocnum] - vertloctax[vertlocnum]; /* Account for its edges */
-  }
-  queuheadidx = 0;                                /* No queued vertex read yet                  */
-  queutailidx = queulocnbr;                       /* All frontier vertices are already in queue */
-
-  for (distval = 0; ++ distval <= distmax; ) {
-    Gnum              queunextidx;                /* Tail index for enqueuing vertices of next band */
-    int               vrcvreqnbr;
-
-    if (MPI_Startall (procngbnbr, nrcvreqtab) != MPI_SUCCESS) { /* Start all receive operations from neighbors */
-      errorPrint ("dgraphBandPtop: communication error (3)");
-      return     (1);
-    }
-
-    bandvertlvlnum = bandvertlocnnd;              /* Save start index of current level, based */
-    *bandvertlvlptr = bandvertlvlnum;
-
-    memCpy (nsndidxtab, nsnddsptab, procngbnbr * sizeof (Gnum)); /* Reset send buffer indices */
-
-    for (queunextidx = queutailidx; queuheadidx < queutailidx; ) { /* For all vertices in queue */
-      Gnum              vertlocnum;
-      Gnum              edgelocnum;
-
-      vertlocnum = queuloctab[queuheadidx ++];    /* Dequeue vertex */
-      for (edgelocnum = vertloctax[vertlocnum]; edgelocnum < vendloctax[vertlocnum]; edgelocnum ++) {
-        Gnum              vertlocend;
-
-        vertlocend = edgegsttax[edgelocnum];
-        if (vnumgsttax[vertlocend] != ~0)         /* If end vertex has already been processed */
-          continue;                               /* Skip to next vertex                      */
-
-        if (vertlocend < vertlocnnd) {            /* If end vertex is local                           */
-          vnumgsttax[vertlocend] = bandvertlocnnd ++; /* Label vertex as enqueued                     */
-          queuloctab[queunextidx ++] = vertlocend; /* Enqueue vertex for next pass                    */
-          bandedgelocnbr += vendloctax[vertlocend] - vertloctax[vertlocend]; /* Account for its edges */
-        }
-        else {                                    /* End vertex is a ghost */
-          Gnum              vertglbend;
-          int               procngbnum;
-          int               procngbmax;
-
-          vnumgsttax[vertlocend] = 0;             /* Label ghost vertex as enqueued  */
-          vertglbend = edgeloctax[edgelocnum];    /* Get global number of end vertex */
-
-          procngbnum = 0;
-          procngbmax = procngbnbr;
-          while ((procngbmax - procngbnum) > 1) { /* Find owner process by dichotomy on procvgbtab */
-            int                 procngbmed;
-
-            procngbmed = (procngbmax + procngbnum) / 2;
-            if (procvgbtab[procngbmed] > vertglbend)
-              procngbmax = procngbmed;
-            else
-              procngbnum = procngbmed;
-          }
-#ifdef SCOTCH_DEBUG_DGRAPH2
-          if ((grafptr->procvrttab[grafptr->procngbtab[procngbnum]]     >  vertglbend) ||
-              (grafptr->procvrttab[grafptr->procngbtab[procngbnum] + 1] <= vertglbend) ||
-              (nsndidxtab[procngbnum] >= nsnddsptab[procngbnum + 1])) {
-            errorPrint ("dgraphBandPtop: internal error (1)");
-            return     (1);
-          }
-#endif /* SCOTCH_DEBUG_DGRAPH2 */
-          vsnddattab[nsndidxtab[procngbnum] ++] = vertglbend - procvgbtab[procngbnum] + grafptr->baseval; /* Buffer local value on neighbor processor */
-        }
-      }
-    }
-
-    procngbnum = procngbnxt;                      /* Send all buffers to neighbors */
-    do {
-      int               procglbnum;
-
-      procglbnum = grafptr->procngbtab[procngbnum];
-
-      if (MPI_Isend (vsnddattab + nsnddsptab[procngbnum], nsndidxtab[procngbnum] - nsnddsptab[procngbnum],
-                     GNUM_MPI, grafptr->procngbtab[procngbnum], TAGBAND, grafptr->proccomm,
-                     nsndreqtab + procngbnum) != MPI_SUCCESS) {
-        errorPrint ("dgraphBandPtop: communication error (4)");
-        return     (1);
-      }
-      procngbnum = (procngbnum + 1) % procngbnbr; /* Post-increment neighbor rank */
-    } while (procngbnum != procngbnxt);
-
-    for (vrcvreqnbr = procngbnbr; vrcvreqnbr > 0; vrcvreqnbr --) { /* For all pending receive requests */
-      Gnum * restrict   vrcvdatptr;
-      int               vertrcvnum;
-      MPI_Status        statdat;
-      int               statsiz;
-      int               o;
-
-#ifdef SCOTCH_DETERMINISTIC
-      procngbnum = vrcvreqnbr - 1;
-      o = MPI_Wait (&nrcvreqtab[procngbnum], &statdat);
-#else /* SCOTCH_DETERMINISTIC */
-      o = MPI_Waitany (procngbnbr, nrcvreqtab, &procngbnum, &statdat);
-#endif /* SCOTCH_DETERMINISTIC */
-      if ((o != MPI_SUCCESS) ||
-          (MPI_Get_count (&statdat, GNUM_MPI, &statsiz) != MPI_SUCCESS)) {
-        errorPrint ("dgraphBandPtop: communication error (5)");
-        return     (1);
-      }
-#ifdef SCOTCH_DEBUG_DGRAPH2
-      if (statdat.MPI_SOURCE != grafptr->procngbtab[procngbnum]) {
-        errorPrint ("dgraphBandPtop: internal error (2)");
-        return     (1);
-      }
-#endif /* SCOTCH_DEBUG_DGRAPH2 */
-
-      vrcvdatptr = vrcvdattab + nrcvdsptab[procngbnum];
-      for (vertrcvnum = 0; vertrcvnum < statsiz; vertrcvnum ++) {
-        Gnum              vertlocend;
-
-        vertlocend = vrcvdatptr[vertrcvnum];      /* Get local vertex from message */
-#ifdef SCOTCH_DEBUG_DGRAPH2
-        if ((vertlocend < grafptr->baseval) || (vertlocend >= vertlocnnd)) {
-          errorPrint ("dgraphBandPtop: internal error (3)");
-          return     (1);
-        }
-#endif /* SCOTCH_DEBUG_DGRAPH2 */
-        if (vnumgsttax[vertlocend] != ~0)         /* If end vertex has already been processed */
-          continue;                               /* Skip to next vertex                      */
-
-        vnumgsttax[vertlocend] = bandvertlocnnd ++; /* Label vertex as enqueued                     */
-        queuloctab[queunextidx ++] = vertlocend;  /* Enqueue vertex for next pass                   */
-        bandedgelocnbr += vendloctax[vertlocend] - vertloctax[vertlocend]; /* Account for its edges */
-      }
-    }
-
-    queutailidx = queunextidx;                    /* Prepare queue for next sweep */
-
-    if (MPI_Waitall (procngbnbr, nsndreqtab, MPI_STATUSES_IGNORE) != MPI_SUCCESS) { /* Wait until all send operations completed */
-      errorPrint ("dgraphBandPtop: communication error (6)");
-      return     (1);
-    }
-  }
-  for (procngbnum = 0; procngbnum < procngbnbr; procngbnum ++) { /* Free persistent receive requests */
-    if (MPI_Request_free (nrcvreqtab + procngbnum) != MPI_SUCCESS) {
-      errorPrint ("dgraphBandPtop: communication error (7)");
-      return     (1);
-    }
-  }
-
-  memFree (procvgbtab);                           /* Free group leader */
-
-  *vnumgstptr     = vnumgsttax;
-  *bandvertlocptr = bandvertlocnnd - grafptr->baseval;
-  *bandedgelocptr = bandedgelocnbr;
-
-  return (0);
-}
+#define DGRAPHBANDGROWNAME          dgraphBand
+#define DGRAPHBANDGROWEDGE(n)       bandedgelocnbr += vendloctax[n] - vertloctax[n]
+#define DGRAPHBANDGROWENQ1          for (queulocnum = 0; queulocnum < queulocnbr; queulocnum ++) { \
+                                      Gnum              vertlocnum;                                \
+                                                                                                   \
+                                      vertlocnum = queuloctab[queulocnum];                         \
+                                      vnumgsttax[vertlocnum] = bandvertlocnnd ++;                  \
+                                      DGRAPHBANDGROWEDGE (vertlocnum);                             \
+                                    }
+#define DGRAPHBANDGROWENQ2          bandvertlocnnd ++
+#define DGRAPHBANDGROWENQ3                        /* Nothing more to send */
+#define DGRAPHBANDGROWENQ4          bandvertlocnnd ++
+#define DGRAPHBANDGROWSMUL(n)       (n)
+#include "dgraph_band_grow.h"
+#include "dgraph_band_grow.c"
+#undef DGRAPHBANDGROWNAME
+#undef DGRAPHBANDGROWEDGE
+#undef DGRAPHBANDGROWENQU
+#undef DGRAPHBANDGROWSMUL
 
 /*****************************/
 /*                           */
@@ -633,6 +131,7 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
   Gnum                    bandedlolocnbr;         /* Size of local band edge load array                        */
   Gnum * restrict         bandfronloctab;
   GraphPart * restrict    bandpartgsttax;
+  Gnum                    bandvnumgstsiz;
   Gnum * restrict         bandvnumgsttax;         /* Indices of selected band vertices in band graph           */
   Gnum                    banddegrlocmax;
   Gnum                    degrval;
@@ -640,6 +139,7 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
   const Gnum * restrict   edgegsttax;
   Gnum                    fronlocnum;
   int                     cheklocval;
+  int                     chekglbval;
   int                     procngbnum;
 
   if (dgraphGhst (grafptr) != 0) {                /* Compute ghost edge array if not already present */
@@ -647,8 +147,28 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
     return     (1);
   }
 
-  if (((SCOTCH_COLLECTIVE_TEST) ? dgraphBandColl : dgraphBandPtop)
-      (grafptr, fronlocnbr, fronloctab, distmax, &bandvnumgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocnbr) != 0)
+  cheklocval = 0;
+  bandvnumgstsiz = MAX ((grafptr->vertgstnbr * sizeof (Gnum)), (grafptr->procglbnbr * sizeof (int))); /* TRICK: re-use array for further error collective communications */
+  if ((bandvnumgsttax = memAlloc (bandvnumgstsiz)) == NULL) {
+    errorPrint ("dgraphBand: out of memory (1)");
+    cheklocval = 1;
+  }
+#ifdef SCOTCH_DEBUG_DGRAPH1                       /* This communication cannot be covered by a useful one */
+  if (MPI_Allreduce (&cheklocval, &chekglbval, 1, MPI_INT, MPI_MAX, grafptr->proccomm) != MPI_SUCCESS) {
+    errorPrint ("dgraphBand: communication error (1)");
+    return     (1);
+  }
+#else /* SCOTCH_DEBUG_DGRAPH1 */
+  chekglbval = cheklocval;
+#endif /* SCOTCH_DEBUG_DGRAPH1 */
+  if (chekglbval != 0)
+    return (1);
+
+  memSet (bandvnumgsttax, ~0, grafptr->vertgstnbr * sizeof (Gnum)); /* Reset part array */
+  bandvnumgsttax -= grafptr->baseval;
+
+  if ((((grafptr->flagval & DGRAPHCOMMPTOP) != 0) ? dgraphBandPtop : dgraphBandColl)
+      (grafptr, fronlocnbr, fronloctab, distmax, bandvnumgsttax, &bandvertlvlnum, &bandvertlocnbr, &bandedgelocnbr) != 0)
     return (1);
 
   if (bandvertlvlptr != NULL)
@@ -662,21 +182,20 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
   bandgrafptr->flagval = (DGRAPHFREEALL ^ DGRAPHFREECOMM) | DGRAPHVERTGROUP | DGRAPHEDGEGROUP; /* Arrays created by the routine itself */
   bandgrafptr->baseval = grafptr->baseval;
 
-  cheklocval = 0;
   if (memAllocGroup ((void **) (void *)           /* Allocate distributed graph private data */
                      &bandgrafptr->procdsptab, (size_t) ((grafptr->procglbnbr + 1) * sizeof (Gnum)),
                      &bandgrafptr->proccnttab, (size_t) (grafptr->procglbnbr       * sizeof (Gnum)),
                      &bandgrafptr->procngbtab, (size_t) (grafptr->procglbnbr       * sizeof (int)),
                      &bandgrafptr->procrcvtab, (size_t) (grafptr->procglbnbr       * sizeof (int)),
                      &bandgrafptr->procsndtab, (size_t) (grafptr->procglbnbr       * sizeof (int)), NULL) == NULL) {
-    errorPrint ("dgraphBand: out of memory (1)");
+    errorPrint ("dgraphBand: out of memory (2)");
     cheklocval = 1;
   }
   else if (memAllocGroup ((void **) (void *)      /* Allocate distributed graph public data */
                           &bandgrafptr->vertloctax, (size_t) ((bandvertlocnbr + 1) * sizeof (Gnum)), /* Compact vertex array */
                           &bandgrafptr->vnumloctax, (size_t) (bandvertlocnbr       * sizeof (Gnum)),
                           &bandgrafptr->veloloctax, (size_t) (bandvertlocnbr       * sizeof (Gnum)), NULL) == NULL) {
-    errorPrint ("dgraphBand: out of memory (2)");
+    errorPrint ("dgraphBand: out of memory (3)");
     cheklocval = 1;
   }
   else if (bandgrafptr->vertloctax -= bandgrafptr->baseval,
@@ -685,7 +204,7 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
            (memAllocGroup ((void **) (void *)
                            &bandedgeloctax, (size_t) (bandedgelocnbr * sizeof (Gnum)),
                            &bandedloloctax, (size_t) (bandedlolocnbr * sizeof (Gnum)), NULL) == NULL)) {
-    errorPrint ("dgraphBand: out of memory (3)");
+    errorPrint ("dgraphBand: out of memory (4)");
     cheklocval = 1;
   }
   else {
@@ -693,11 +212,11 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
     bandedloloctax  = (grafptr->edloloctax != NULL) ? (bandedloloctax - bandgrafptr->baseval) : NULL;
 
     if ((bandfronloctab = memAlloc (bandvertlocnbr * sizeof (Gnum))) == NULL) {
-      errorPrint ("dgraphBand: out of memory (4)");
+      errorPrint ("dgraphBand: out of memory (5)");
       cheklocval = 1;
     }
     else if ((bandpartgsttax = memAlloc ((bandvertlocnbr + bandedgelocnbr) * sizeof (GraphPart))) == NULL) { /* Upper bound on number of ghost vertices */
-      errorPrint ("dgraphBand: out of memory (5)");
+      errorPrint ("dgraphBand: out of memory (6)");
       cheklocval = 1;
     }
     else
@@ -708,12 +227,12 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
     bandgrafptr->procdsptab[0] = -1;
     if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI, /* Send received data to dummy array */
                        bandvnumgsttax + bandgrafptr->baseval, 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
-      errorPrint ("dgraphBand: communication error (1)");
+      errorPrint ("dgraphBand: communication error (2)");
       return     (1);
     }
     if (bandfronloctab != NULL)
       memFree (bandfronloctab);
-    dgraphExit (bandgrafptr);
+    dgraphFree (bandgrafptr);
     memFree    (bandvnumgsttax + bandgrafptr->baseval);
     return     (1);
   }
@@ -721,7 +240,7 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
     bandgrafptr->procdsptab[0] = bandvertlocnbr;
     if (MPI_Allgather (&bandgrafptr->procdsptab[0], 1, GNUM_MPI,
                        &bandgrafptr->procdsptab[1], 1, GNUM_MPI, grafptr->proccomm) != MPI_SUCCESS) {
-      errorPrint ("dgraphBand: communication error (2)");
+      errorPrint ("dgraphBand: communication error (3)");
       return     (1);
     }
   }
@@ -736,7 +255,7 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
         memFree (bandpartgsttax + bandgrafptr->baseval);
       if (bandfronloctab != NULL)
         memFree (bandfronloctab);
-      dgraphExit (bandgrafptr);
+      dgraphFree (bandgrafptr);
       memFree    (bandvnumgsttax + bandgrafptr->baseval);
       return     (1);
     }
@@ -865,11 +384,11 @@ Gnum * const                        bandvertlocancptr) /*+ Pointer to flag set i
       banddegrlocmax = degrval;
   }
 
-  memFree (bandvnumgsttax + bandgrafptr->baseval);  /* Free useless space */
+  memFree (bandvnumgsttax + bandgrafptr->baseval); /* Free useless space */
 
   bandpartgsttax[bandvertlocnnd]     = 0;         /* Set parts of anchor vertices */
   bandpartgsttax[bandvertlocnnd + 1] = 1;
-  bandvertloctax[bandvertlocnum] = bandedgelocnum; /* Process anchor vertex in part 0                 */
+  bandvertloctax[bandvertlocnum] = bandedgelocnum; /* Process anchor vertex in part 0                          */
   for (procngbnum = 0; procngbnum < grafptr->proclocnum; procngbnum ++) /* Build clique with anchors of part 0 */
     bandedgeloctax[bandedgelocnum ++] = bandgrafptr->procdsptab[procngbnum + 1] - 2;
   for (procngbnum ++; procngbnum < grafptr->procglbnbr; procngbnum ++) /* Build clique with anchors of part 0 */

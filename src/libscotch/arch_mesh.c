@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010,2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_mesh.c                             **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module handles the mesh graph      **/
 /**                target architectures.                   **/
@@ -60,6 +61,8 @@
 /**                                 to     10 mar 2005     **/
 /**                # Version 5.1  : from : 21 jan 2008     **/
 /**                                 to     11 aug 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     14 fev 2011     **/
 /**                                                        **/
 /**   NOTES      : # The vertices of the (dX,dY) mesh are  **/
 /**                  numbered as terminals so that         **/
@@ -395,6 +398,29 @@ ArchMesh2Dom * restrict const dom1ptr)
   return (0);
 }
 
+/* This function checks if dom1 is
+** included in dom0.
+** It returns:
+** - 0  : if dom1 is not included in dom0.
+** - 1  : if dom1 is included in dom0.
+** - 2  : on error.
+*/
+
+int
+archMesh2DomIncl (
+const ArchMesh2 * const     archptr,
+const ArchMesh2Dom * const  dom0ptr,
+const ArchMesh2Dom * const  dom1ptr)
+{
+  if ((dom0ptr->c[0][0] <= dom1ptr->c[0][0]) &&
+      (dom0ptr->c[0][1] >= dom1ptr->c[0][1]) &&
+      (dom0ptr->c[1][0] <= dom1ptr->c[1][0]) &&
+      (dom0ptr->c[1][1] >= dom1ptr->c[1][1]))
+    return (1);
+
+  return (0);
+}
+
 /* This function creates the MPI_Datatype for
 ** 2D mesh domains.
 ** It returns:
@@ -700,6 +726,31 @@ ArchMesh3Dom * restrict const dom1ptr)
     dom1ptr->c[2][0] = dom0ptr->c[2][1] + 1;
     dom1ptr->c[2][1] = domptr->c[2][1];
   }
+
+  return (0);
+}
+
+/* This function checks if dom1 is
+** included in dom0.
+** It returns:
+** - 0  : if dom1 is not included in dom0.
+** - 1  : if dom1 is included in dom0.
+** - 2  : on error.
+*/
+
+int
+archMesh3DomIncl (
+const ArchMesh3 * const     archptr,
+const ArchMesh3Dom * const  dom0ptr,
+const ArchMesh3Dom * const  dom1ptr)
+{
+  if ((dom0ptr->c[0][0] <= dom1ptr->c[0][0]) &&
+      (dom0ptr->c[0][1] >= dom1ptr->c[0][1]) &&
+      (dom0ptr->c[1][0] <= dom1ptr->c[1][0]) &&
+      (dom0ptr->c[1][1] >= dom1ptr->c[1][1]) &&
+      (dom0ptr->c[2][0] <= dom1ptr->c[2][0]) &&
+      (dom0ptr->c[2][1] >= dom1ptr->c[2][1]))
+    return (1);
 
   return (0);
 }

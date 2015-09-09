@@ -1,4 +1,4 @@
-/* Copyright 2007-2009 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2009,2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -43,8 +43,22 @@
 /**                                 to   : 24 feb 2007     **/
 /**                # Version 5.1  : from : 11 nov 2008     **/
 /**                                 to   : 26 may 2009     **/
+/**                # Version 6.0  : from : 18 sep 2012     **/
+/**                                 to   : 28 sep 2014     **/
 /**                                                        **/
 /************************************************************/
+
+/*
+** The defines.
+*/
+
+/*+ Graph option flags. Their values must be equal
+    to those defined in library.h and library_f.h  +*/
+
+#define DGRAPHCOARSENNONE           0x0000        /* No options set                 */
+#define DGRAPHCOARSENFOLD           0x0100        /* Do folding without duplication */
+#define DGRAPHCOARSENFOLDDUP        0x0300        /* Do folding with duplication    */
+#define DGRAPHCOARSENNOMERGE        0x4000        /* Do not merge isolated vertices */
 
 /*
 ** The type and structure definitions.
@@ -92,9 +106,10 @@ typedef struct DgraphCoarsenHash_ {
     and matching routines.                    +*/
 
 typedef struct DgraphCoarsenData_ {
+  int                       flagval;              /*+ Flag value                                                   +*/
   Dgraph *                  finegrafptr;          /*+ Pointer to fine graph                                        +*/
   Dgraph *                  coargrafptr;          /*+ Pointer to coarse graph which is built                       +*/
-  int *                     coarprivptr;          /*+ Pointer to coarse private data to free in case of error      +*/
+  int *                     coarprvptr;           /*+ Pointer to coarse private data to free in case of error      +*/
   DgraphCoarsenVert *       vrcvdattab;           /*+ Area reserved for receiving vertex messages                  +*/
   DgraphCoarsenVert *       vsnddattab;           /*+ Area reserved for sending vertex messages                    +*/
   int *                     vrcvcnttab;           /*+ Count data for vertex receive sub-arrays                     +*/
@@ -110,6 +125,7 @@ typedef struct DgraphCoarsenData_ {
   DgraphCoarsenCount *      dcntloctab;           /*+ Count array for sending vertices and edges                   +*/
   DgraphCoarsenCount *      dcntglbtab;           /*+ Count array for receiving vertices and edges                 +*/
   Gnum *                    coargsttax;           /*+ Fine-to-coarse vertex index array                            +*/
+  DgraphCoarsenMulti *      multloctmp;           /*+ Pointer to multloctab structure to free (if any)             +*/
   DgraphCoarsenMulti *      multloctab;           /*+ Structure which contains the result of the matching          +*/
   Gnum                      multlocnbr;           /*+ Index of next multinode to be created                        +*/
   Gnum                      vertrcvnbr;           /*+ Number of fine vertices to be received                       +*/
@@ -131,6 +147,6 @@ static int                  dgraphCoarsenInit   (DgraphCoarsenData * restrict co
 static void                 dgraphCoarsenExit   (DgraphCoarsenData * restrict const);
 static int                  dgraphCoarsenBuild  (DgraphCoarsenData * restrict const);
 
-int                         dgraphCoarsen       (Dgraph * restrict const, Dgraph * restrict const, DgraphCoarsenMulti * restrict * const, const Gnum, const Gnum, const int, const Gnum, const double);
+int                         dgraphCoarsen       (Dgraph * restrict const, Dgraph * restrict const, DgraphCoarsenMulti * restrict * const, const Gnum, const Gnum, const double, const int);
 
 #undef static

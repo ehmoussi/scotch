@@ -1,4 +1,4 @@
-/* Copyright 2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2008,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -42,6 +42,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 28 may 2008     **/
 /**                                 to     28 may 2008     **/
+/**                # Version 6.0  : from : 29 nov 2012     **/
+/**                                 to     29 nov 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -55,7 +57,7 @@
 #include "common.h"
 #include "dgraph.h"
 #include "dorder.h"
-#include "scotch.h"
+#include "ptscotch.h"
 
 /************************************/
 /*                                  */

@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : bgraph_bipart_fm.h                      **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/
 /**                for our Improved Fiduccia-Mattheyses    **/
@@ -57,6 +58,8 @@
 /**                                 to     12 mar 1999     **/
 /**                # Version 4.0  : from : 27 aug 2004     **/
 /**                                 to     27 aug 2004     **/
+/**                # Version 6.0  : from : 23 fev 2011     **/
+/**                                 to     05 sep 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -64,23 +67,20 @@
 **  The defines.
 */
 
-/*+ Gain table subbits. +*/
-
-#define BGRAPHBIPARTFMSUBBITS       4
-
 /*+ Prime number for hashing vertex numbers. +*/
 
 #define BGRAPHBIPARTFMHASHPRIME     17            /*+ Prime number for hashing +*/
 
-/** Gain table vertex status. **/
-
-#define BGRAPHBIPARTFMSTATEFREE     ((GainLink *) 0) /*+ Vertex in initial state           +*/
-#define BGRAPHBIPARTFMSTATEUSED     ((GainLink *) 1) /*+ Swapped vertex                    +*/
-#define BGRAPHBIPARTFMSTATELINK     ((GainLink *) 2) /*+ Currently in gain table if higher +*/
-
 /*
 **  The type and structure definitions.
 */
+
+/*+ Move type. +*/
+
+typedef enum BgraphBipartFmType_ {
+  BGRAPHBIPARTFMTYPEALL,                          /*+ All vertices           +*/
+  BGRAPHBIPARTFMTYPEBOUNDARY                      /*+ Boundary vertices only +*/
+} BgraphBipartFmType;
 
 /*+ This structure holds the method parameters. +*/
 
@@ -88,14 +88,29 @@ typedef struct BgraphBipartFmParam_ {
   INT                       movenbr;              /*+ Maximum number of uneffective moves that can be done +*/
   INT                       passnbr;              /*+ Number of passes to be performed (-1 : infinite)     +*/
   double                    deltval;              /*+ Maximum weight imbalance ratio                       +*/
+  BgraphBipartFmType        typeval;              /*+ Whether considered vertices are boundary or all      +*/
 } BgraphBipartFmParam;
+
+#ifdef BGRAPH_BIPART_FM                           /* Private part of the module */
 
 /*+ The hash vertex structure. For trick
     reasons, the gain table data structure
     must be the first field of the structure. +*/
 
+#ifdef SCOTCH_TABLE_GAIN
+
+typedef GainTabl * BgraphBipartFmTabl;
+typedef GainLink BgraphBipartFmLink;
+
+#else /* SCOTCH_TABLE_GAIN */
+
+typedef FiboTree BgraphBipartFmTabl;
+typedef FiboNode BgraphBipartFmLink;
+
+#endif /* SCOTCH_TABLE_GAIN */
+
 typedef struct BgraphBipartFmVertex_ {
-  GainLink                  gainlink;             /*+ Gain link: FIRST                        +*/
+  BgraphBipartFmLink        gainlink;             /*+ Gain link: FIRST                        +*/
   Gnum                      vertnum;              /*+ Number of vertex                        +*/
   int                       partval;              /*+ Vertex part                             +*/
   Gnum                      compgain;             /*+ Computation gain                        +*/
@@ -118,17 +133,86 @@ typedef struct BgraphBipartFmSave_ {
 **  The function prototypes.
 */
 
-#ifndef BGRAPH_BIPART_FM
-#define static
-#endif
+static BgraphBipartFmVertex * bgraphBipartFmTablGet (BgraphBipartFmTabl * restrict const, const Gnum, const Gnum, const Gnum);
 
-static BgraphBipartFmVertex * bgraphBipartFmTablGet (GainTabl * restrict const, const Gnum, const Gnum);
-
-int                         bgraphBipartFm      (Bgraph * restrict const, const BgraphBipartFmParam * const);
-
-static int                  bgraphBipartFmResize (BgraphBipartFmVertex * restrict *, Gnum * restrict const, Gnum * const, BgraphBipartFmSave * restrict *, const Gnum, GainTabl * const, BgraphBipartFmVertex ** const);
+static int                  bgraphBipartFmResize (BgraphBipartFmVertex * restrict *, Gnum * restrict const, Gnum * const, BgraphBipartFmSave * restrict *, const Gnum, BgraphBipartFmTabl * const, BgraphBipartFmVertex ** const);
 #ifdef SCOTCH_DEBUG_BGRAPH3
 static int                  bgraphBipartFmCheck (const Bgraph * restrict const, const BgraphBipartFmVertex * restrict const, const Gnum, const int, const Gnum, const Gnum, const Gnum);
 #endif /* SCOTCH_DEBUG_BGRAPH3 */
 
-#undef static
+#endif /* BGRAPH_BIPART_FM */
+
+int                         bgraphBipartFm      (Bgraph * restrict const, const BgraphBipartFmParam * const);
+
+/*
+**  The macro definitions.
+*/
+
+#ifdef SCOTCH_TABLE_GAIN
+
+/*+ Gain table subbits. +*/
+
+#define BGRAPHBIPARTFMSUBBITS       4
+
+/** Gain table vertex status. **/
+
+#define BGRAPHBIPARTFMSTATEFREE     ((GainLink *) 0) /*+ Vertex in initial state           +*/
+#define BGRAPHBIPARTFMSTATEUSED     ((GainLink *) 1) /*+ Swapped vertex                    +*/
+#define BGRAPHBIPARTFMSTATELINK     ((GainLink *) 2) /*+ Currently in gain table if higher +*/
+
+/*+ Service routines. +*/
+
+#define bgraphBipartFmTablInit(t)   (((*(t)) = gainTablInit (GAINMAX, BGRAPHBIPARTFMSUBBITS)) == NULL)
+#define bgraphBipartFmTablFree(t)   gainTablFree (*(t))
+#define bgraphBipartFmTablExit(t)   do {                     \
+                                      if (*(t) != NULL)      \
+                                        gainTablExit (*(t)); \
+                                    } while (0)
+#define bgraphBipartFmTablAdd(t,v)  gainTablAdd ((*(t)), &(v)->gainlink, (v)->commgain)
+#define bgraphBipartFmTablDel(t,v)  gainTablDel ((*(t)), &(v)->gainlink)
+#define bgraphBipartFmIsFree(v)     ((v)->gainlink.next == BGRAPHBIPARTFMSTATEFREE)
+#define bgraphBipartFmIsTabl(v)     ((v)->gainlink.next >= BGRAPHBIPARTFMSTATELINK)
+#define bgraphBipartFmIsUsed(v)     ((v)->gainlink.next == BGRAPHBIPARTFMSTATEUSED)
+#define bgraphBipartFmSetFree(v)    do {                                            \
+                                      (v)->gainlink.next = BGRAPHBIPARTFMSTATEFREE; \
+                                    } while (0)
+#define bgraphBipartFmSetUsed(v)    do {                                            \
+                                      (v)->gainlink.next = BGRAPHBIPARTFMSTATEUSED; \
+                                    } while (0)
+#define bgraphBipartFmChain(l,v)    do {                                      \
+                                      (v)->gainlink.prev = (GainLink *) *(l); \
+                                      *(l) = (v);                             \
+                                    } while (0)
+#define bgraphBipartFmChainNext(v)  ((BgraphBipartFmVertex *) (v)->gainlink.prev)
+
+#else /* SCOTCH_TABLE_GAIN */
+
+/** Gain table vertex status. **/
+
+#define BGRAPHBIPARTFMSTATEFREE     ((FiboNode *) 0) /*+ Vertex in initial state           +*/
+#define BGRAPHBIPARTFMSTATEUSED     ((FiboNode *) 1) /*+ Swapped vertex                    +*/
+#define BGRAPHBIPARTFMSTATELINK     ((FiboNode *) 2) /*+ Currently in gain table if higher +*/
+
+/*+ Service routines. +*/
+
+#define bgraphBipartFmTablInit(t)   (fiboTreeInit ((t), bgraphBipartFmCmpFunc))
+#define bgraphBipartFmTablFree(t)   fiboTreeFree (t)
+#define bgraphBipartFmTablExit(t)   fiboTreeExit (t)
+#define bgraphBipartFmTablAdd(t,v)  fiboTreeAdd ((t), &(v)->gainlink)
+#define bgraphBipartFmTablDel(t,v)  fiboTreeDel ((t), &(v)->gainlink)
+#define bgraphBipartFmIsFree(v)     ((v)->gainlink.linkdat.nextptr == BGRAPHBIPARTFMSTATEFREE)
+#define bgraphBipartFmIsTabl(v)     ((v)->gainlink.linkdat.nextptr >= BGRAPHBIPARTFMSTATELINK)
+#define bgraphBipartFmIsUsed(v)     ((v)->gainlink.linkdat.nextptr == BGRAPHBIPARTFMSTATEUSED)
+#define bgraphBipartFmSetFree(v)    do {                                                       \
+                                      (v)->gainlink.linkdat.nextptr = BGRAPHBIPARTFMSTATEFREE; \
+                                    } while (0)
+#define bgraphBipartFmSetUsed(v)    do {                                                       \
+                                      (v)->gainlink.linkdat.nextptr = BGRAPHBIPARTFMSTATEUSED; \
+                                    } while (0)
+#define bgraphBipartFmChain(l,v)    do {                                                 \
+                                      (v)->gainlink.linkdat.prevptr = (FiboNode *) *(l); \
+                                      *(l) = (v);                                        \
+                                    } while (0)
+#define bgraphBipartFmChainNext(v)  ((BgraphBipartFmVertex *) (v)->gainlink.linkdat.prevptr)
+
+#endif /* SCOTCH_TABLE_GAIN */

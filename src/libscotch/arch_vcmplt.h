@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -53,12 +53,17 @@
 /**                                 to     05 nov 2003     **/
 /**                # Version 5.1  : from : 21 jan 2008     **/
 /**                                 to     21 jan 2008     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     26 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
 /*
 **  The type and structure definitions.
 */
+
+#ifndef ARCH_VCMPLT_H_STRUCT
+#define ARCH_VCMPLT_H_STRUCT
 
 /*+ The variable-sized complete graph bipartitioning definitions. +*/
 
@@ -67,12 +72,19 @@ typedef struct ArchVcmplt_ {
 } ArchVcmplt;
 
 typedef struct ArchVcmpltDom_ {
+  Anum                      termlvl;              /*+ Terminal depth  +*/
   Anum                      termnum;              /*+ Terminal number +*/
 } ArchVcmpltDom;
+
+#endif /* ARCH_VCMPLT_H_STRUCT */
 
 /*
 **  The function prototypes.
 */
+
+#ifndef ARCH_NOPROTO
+#ifndef ARCH_VCMPLT_H_PROTO
+#define ARCH_VCMPLT_H_PROTO
 
 #ifndef ARCH_VCMPLT
 #define static
@@ -90,8 +102,12 @@ int                         archVcmpltDomFrst   (const ArchVcmplt * const, ArchV
 int                         archVcmpltDomLoad   (const ArchVcmplt * const, ArchVcmpltDom * const, FILE * const);
 int                         archVcmpltDomSave   (const ArchVcmplt * const, const ArchVcmpltDom * const, FILE * const);
 int                         archVcmpltDomBipart (const ArchVcmplt * const, const ArchVcmpltDom * const, ArchVcmpltDom * restrict const, ArchVcmpltDom * restrict const);
+int                         archVcmpltDomIncl   (const ArchVcmplt * const, const ArchVcmpltDom * const, const ArchVcmpltDom * const);
 #ifdef SCOTCH_PTSCOTCH
 int                         archVcmpltDomMpiType (const ArchVcmplt * const, MPI_Datatype * const);
 #endif /* SCOTCH_PTSCOTCH */
 
 #undef static
+
+#endif /* ARCH_VCMPLT_H_PROTO */
+#endif /* ARCH_NOPROTO        */

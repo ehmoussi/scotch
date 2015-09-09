@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2010-2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : library_graph_map_f.c                   **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module is the Fortran API for the  **/
 /**                mapping routines of the libSCOTCH       **/
@@ -44,7 +45,9 @@
 /**                # Version 4.0  : from : 12 jan 2004     **/
 /**                                 to     12 dec 2005     **/
 /**                # Version 5.1  : from : 27 mar 2010     **/
-/**                                 to     25 jul 2010     **/
+/**                                 to     31 aug 2011     **/
+/**                # Version 6.0  : from : 17 apr 2011     **/
+/**                                 to     23 nov 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -68,17 +71,17 @@
 /*
 **
 */
-
+/* TODO update fortran interface... */
 FORTRAN (                                       \
 SCOTCHFGRAPHMAPINIT, scotchfgraphmapinit, (     \
 const SCOTCH_Graph * const  grafptr,            \
-SCOTCH_Mapping * const      mapptr,             \
+SCOTCH_Mapping * const      mappptr,            \
 const SCOTCH_Arch * const   archptr,            \
-SCOTCH_Num * const          maptab,             \
+SCOTCH_Num * const          mapptab,            \
 int * const                 revaptr),           \
-(grafptr, mapptr, archptr, maptab, revaptr))
+(grafptr, mappptr, archptr, mapptab, revaptr))
 {
-  *revaptr = SCOTCH_graphMapInit (grafptr, mapptr, archptr, maptab);
+  *revaptr = SCOTCH_graphMapInit (grafptr, mappptr, archptr, mapptab);
 }
 
 /*
@@ -88,82 +91,10 @@ int * const                 revaptr),           \
 FORTRAN (                                       \
 SCOTCHFGRAPHMAPEXIT, scotchfgraphmapexit, (     \
 const SCOTCH_Graph * const  grafptr,            \
-SCOTCH_Mapping * const      mapptr),            \
-(grafptr, mapptr))
+SCOTCH_Mapping * const      mappptr),           \
+(grafptr, mappptr))
 {
-  SCOTCH_graphMapExit (grafptr, mapptr);
-}
-
-/*
-**
-*/
-
-FORTRAN (                                       \
-SCOTCHFGRAPHMAPLOAD, scotchfgraphmapload, (     \
-const SCOTCH_Graph * const  grafptr,            \
-SCOTCH_Mapping * const      mapptr,             \
-int * const                 fileptr,            \
-int * const                 revaptr),           \
-(grafptr, mapptr, fileptr, revaptr))
-{
-  FILE *              stream;                     /* Stream to build from handle */
-  int                 filenum;                    /* Duplicated handle           */
-  int                 o;
-
-  if ((filenum = dup (*fileptr)) < 0) {           /* If cannot duplicate file descriptor */
-    errorPrint ("SCOTCHFGRAPHMAPLOAD: cannot duplicate handle");
-
-    *revaptr = 1;                                 /* Indicate error */
-    return;
-  }
-  if ((stream = fdopen (filenum, "r")) == NULL) { /* Build stream from handle */
-    errorPrint ("SCOTCHFGRAPHMAPLOAD: cannot open input stream");
-    close      (filenum);
-    *revaptr = 1;
-    return;
-  }
-
-  o = SCOTCH_graphMapLoad (grafptr, mapptr, stream);
-
-  fclose (stream);                                /* This closes filenum too */
-
-  *revaptr = o;
-}
-
-/*
-**
-*/
-
-FORTRAN (                                       \
-SCOTCHFGRAPHMAPSAVE, scotchfgraphmapsave, (     \
-const SCOTCH_Graph * const  grafptr,            \
-SCOTCH_Mapping * const      mapptr,             \
-int * const                 fileptr,            \
-int * const                 revaptr),           \
-(grafptr, mapptr, fileptr, revaptr))
-{
-  FILE *              stream;                     /* Stream to build from handle */
-  int                 filenum;                    /* Duplicated handle           */
-  int                 o;
-
-  if ((filenum = dup (*fileptr)) < 0) {           /* If cannot duplicate file descriptor */
-    errorPrint ("SCOTCHFGRAPHMAPSAVE: cannot duplicate handle");
-
-    *revaptr = 1;                                 /* Indicate error */
-    return;
-  }
-  if ((stream = fdopen (filenum, "w")) == NULL) { /* Build stream from handle */
-    errorPrint ("SCOTCHFGRAPHMAPSAVE: cannot open output stream");
-    close      (filenum);
-    *revaptr = 1;
-    return;
-  }
-
-  o = SCOTCH_graphMapSave (grafptr, mapptr, stream);
-
-  fclose (stream);                                /* This closes filenum too */
-
-  *revaptr = o;
+  SCOTCH_graphMapExit (grafptr, mappptr);
 }
 
 /*
@@ -173,12 +104,63 @@ int * const                 revaptr),           \
 FORTRAN (                                         \
 SCOTCHFGRAPHMAPCOMPUTE, scotchfgraphmapcompute, ( \
 SCOTCH_Graph * const        grafptr,              \
-SCOTCH_Mapping * const      mapptr,               \
-SCOTCH_Strat * const        stratptr,             \
+SCOTCH_Mapping * const      mappptr,              \
+SCOTCH_Strat * const        straptr,              \
 int * const                 revaptr),             \
-(grafptr, mapptr, stratptr, revaptr))
+(grafptr, mappptr, straptr, revaptr))
 {
-  *revaptr = SCOTCH_graphMapCompute (grafptr, mapptr, stratptr);
+  *revaptr = SCOTCH_graphMapCompute (grafptr, mappptr, straptr);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                                   \
+SCOTCHFGRAPHMAPFIXEDCOMPUTE, scotchfgraphmapfixedcompute, ( \
+SCOTCH_Graph * const        grafptr,                        \
+SCOTCH_Mapping * const      mappptr,                        \
+SCOTCH_Strat * const        straptr,                        \
+int * const                 revaptr),                       \
+(grafptr, mappptr, straptr, revaptr))
+{
+  *revaptr = SCOTCH_graphMapFixedCompute (grafptr, mappptr, straptr);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                             \
+SCOTCHFGRAPHREMAPCOMPUTE, scotchfgraphremapcompute, ( \
+SCOTCH_Graph * const        grafptr,                  \
+SCOTCH_Mapping * const      mappptr,                  \
+SCOTCH_Mapping * const      mapoptr,                  \
+const double * const        emraptr,                  \
+const SCOTCH_Num * const    vmlotab,                  \
+SCOTCH_Strat * const        straptr,                  \
+int * const                 revaptr),                 \
+(grafptr, mappptr, mapoptr, emraptr, vmlotab, straptr, revaptr))
+{
+  *revaptr = SCOTCH_graphRemapCompute (grafptr, mappptr, mapoptr, *emraptr, vmlotab, straptr);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                                       \
+SCOTCHFGRAPHREMAPFIXEDCOMPUTE, scotchfgraphremapfixedcompute, ( \
+SCOTCH_Graph * const        grafptr,                            \
+SCOTCH_Mapping * const      mappptr,                            \
+SCOTCH_Mapping * const      mapoptr,                            \
+const double * const        emraptr,                            \
+const SCOTCH_Num * const    vmlotab,                            \
+SCOTCH_Strat * const        straptr,                            \
+int * const                 revaptr),                           \
+(grafptr, mappptr, mapoptr, emraptr, vmlotab, straptr, revaptr))
+{
+  *revaptr = SCOTCH_graphRemapFixedCompute (grafptr, mappptr, mapoptr, *emraptr, vmlotab, straptr);
 }
 
 /*
@@ -189,12 +171,66 @@ FORTRAN (                                       \
 SCOTCHFGRAPHMAP, scotchfgraphmap, (             \
 SCOTCH_Graph * const        grafptr,            \
 const SCOTCH_Arch * const   archptr,            \
-SCOTCH_Strat * const        stratptr,           \
-SCOTCH_Num * const          maptab,             \
+SCOTCH_Strat * const        straptr,            \
+SCOTCH_Num * const          parttab,            \
 int * const                 revaptr),           \
-(grafptr, archptr, stratptr, maptab, revaptr))
+(grafptr, archptr, straptr, parttab, revaptr))
 {
-  *revaptr = SCOTCH_graphMap (grafptr, archptr, stratptr, maptab);
+  *revaptr = SCOTCH_graphMap (grafptr, archptr, straptr, parttab);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                       \
+SCOTCHFGRAPHMAPFIXED, scotchfgraphmapfixed, (   \
+SCOTCH_Graph * const        grafptr,            \
+const SCOTCH_Arch * const   archptr,            \
+SCOTCH_Strat * const        straptr,            \
+SCOTCH_Num * const          parttab,            \
+int * const                 revaptr),           \
+(grafptr, archptr, straptr, parttab, revaptr))
+{
+  *revaptr = SCOTCH_graphMapFixed (grafptr, archptr, straptr, parttab);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                       \
+SCOTCHFGRAPHREMAP, scotchfgraphremap, (         \
+SCOTCH_Graph * const        grafptr,            \
+const SCOTCH_Arch * const   archptr,            \
+SCOTCH_Num * const          parotab,            \
+const double * const        emraptr,            \
+const SCOTCH_Num * const    vmlotab,            \
+SCOTCH_Strat * const        straptr,            \
+SCOTCH_Num * const          parttab,            \
+int * const                 revaptr),           \
+(grafptr, archptr, parotab, emraptr, vmlotab, straptr, parttab, revaptr))
+{
+  *revaptr = SCOTCH_graphRemap (grafptr, archptr, parotab, *emraptr, vmlotab, straptr, parttab);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                         \
+SCOTCHFGRAPHREMAPFIXED, scotchfgraphremapfixed, ( \
+SCOTCH_Graph * const        grafptr,              \
+const SCOTCH_Arch * const   archptr,              \
+SCOTCH_Num * const          parotab,              \
+const double * const        emraptr,              \
+const SCOTCH_Num * const    vmlotab,              \
+SCOTCH_Strat * const        straptr,              \
+SCOTCH_Num * const          parttab,              \
+int * const                 revaptr),             \
+(grafptr, archptr, parotab, emraptr, vmlotab, straptr, parttab, revaptr))
+{
+  *revaptr = SCOTCH_graphRemapFixed (grafptr, archptr, parotab, *emraptr, vmlotab, straptr, parttab);
 }
 
 /*
@@ -205,12 +241,66 @@ FORTRAN (                                       \
 SCOTCHFGRAPHPART, scotchfgraphpart, (           \
 SCOTCH_Graph * const        grafptr,            \
 const SCOTCH_Num * const    partptr,            \
-SCOTCH_Strat * const        stratptr,           \
-SCOTCH_Num * const          maptab,             \
+SCOTCH_Strat * const        straptr,            \
+SCOTCH_Num * const          mapptab,            \
 int * const                 revaptr),           \
-(grafptr, partptr, stratptr, maptab, revaptr))
+(grafptr, partptr, straptr, mapptab, revaptr))
 {
-  *revaptr = SCOTCH_graphPart (grafptr, *partptr, stratptr, maptab);
+  *revaptr = SCOTCH_graphPart (grafptr, *partptr, straptr, mapptab);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                       \
+SCOTCHFGRAPHPARTFIXED, scotchfgraphpartfixed, ( \
+SCOTCH_Graph * const        grafptr,            \
+const SCOTCH_Num * const    partptr,            \
+SCOTCH_Strat * const        straptr,            \
+SCOTCH_Num * const          mapptab,            \
+int * const                 revaptr),           \
+(grafptr, partptr, straptr, mapptab, revaptr))
+{
+  *revaptr = SCOTCH_graphPartFixed (grafptr, *partptr, straptr, mapptab);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                       \
+SCOTCHFGRAPHREPART, scotchfgraphrepart, (       \
+SCOTCH_Graph * const        grafptr,            \
+const SCOTCH_Num * const    partptr,            \
+SCOTCH_Num * const          parotab,            \
+const double * const        emraptr,            \
+const SCOTCH_Num * const    vmlotab,            \
+SCOTCH_Strat * const        straptr,            \
+SCOTCH_Num * const          mapptab,            \
+int * const                 revaptr),           \
+(grafptr, partptr, parotab, emraptr, vmlotab, straptr, mapptab, revaptr))
+{
+  *revaptr = SCOTCH_graphRepart (grafptr, *partptr, parotab, *emraptr, vmlotab, straptr, mapptab);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                           \
+SCOTCHFGRAPHREPARTFIXED, scotchfgraphrepartfixed, ( \
+SCOTCH_Graph * const        grafptr,                \
+const SCOTCH_Num * const    partptr,                \
+SCOTCH_Num * const          parotab,                \
+const double * const        emraptr,                \
+const SCOTCH_Num * const    vmlotab,                \
+SCOTCH_Strat * const        straptr,                \
+SCOTCH_Num * const          mapptab,                \
+int * const                 revaptr),               \
+(grafptr, partptr, parotab, emraptr, vmlotab, straptr, mapptab, revaptr))
+{
+  *revaptr = SCOTCH_graphRepartFixed (grafptr, *partptr, parotab, *emraptr, vmlotab, straptr, mapptab);
 }
 
 /* String lengths are passed at the very
@@ -248,9 +338,26 @@ SCOTCHFSTRATGRAPHMAPBUILD, scotchfstratgraphmapbuild, ( \
 SCOTCH_Strat * const        stratptr,                   \
 const SCOTCH_Num * const    flagval,                    \
 const SCOTCH_Num * const    partnbr,                    \
-const double * const        balrat,                     \
+const double * const        kbalptr,                    \
 int * const                 revaptr),                   \
-(stratptr, flagval, partnbr, balrat, revaptr))
+(stratptr, flagval, partnbr, kbalptr, revaptr))
 {
-  *revaptr = SCOTCH_stratGraphMapBuild (stratptr, *flagval, *partnbr, *balrat);
+  *revaptr = SCOTCH_stratGraphMapBuild (stratptr, *flagval, *partnbr, *kbalptr);
+}
+
+/*
+**
+*/
+
+FORTRAN (                                                       \
+SCOTCHFSTRATGRAPHCLUSTERBUILD, scotchfstratgraphclusterbuild, ( \
+SCOTCH_Strat * const        stratptr,                           \
+const SCOTCH_Num * const    flagval,                            \
+const SCOTCH_Num * const    pwgtval,                            \
+const double * const        densval,                            \
+const double * const        bbalptr,                            \
+int * const                 revaptr),                           \
+(stratptr, flagval, pwgtval, densval, bbalptr, revaptr))
+{
+  *revaptr = SCOTCH_stratGraphClusterBuild (stratptr, *flagval, *pwgtval, *densval, *bbalptr);
 }

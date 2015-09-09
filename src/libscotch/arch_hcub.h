@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -59,12 +59,17 @@
 /**                                 to     11 nov 2003     **/
 /**                # Version 5.1  : from : 21 jan 2008     **/
 /**                                 to     21 jan 2008     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     01 jul 2014     **/
 /**                                                        **/
 /************************************************************/
 
 /*
 **  The type and structure definitions.
 */
+
+#ifndef ARCH_HCUB_H_STRUCT
+#define ARCH_HCUB_H_STRUCT
 
 /*+ The binary hypercube definitions. +*/
 
@@ -77,9 +82,15 @@ typedef struct ArchHcubDom_ {
   Anum                      bitset;               /*+ Bit set of set dimensions   +*/
 } ArchHcubDom;
 
+#endif /* ARCH_HCUB_H_STRUCT */
+
 /*
 **  The function prototypes.
 */
+
+#ifndef ARCH_NOPROTO
+#ifndef ARCH_HCUB_H_PROTO
+#define ARCH_HCUB_H_PROTO
 
 #ifndef ARCH_HCUB
 #define static
@@ -97,8 +108,12 @@ int                         archHcubDomFrst     (const ArchHcub * const, ArchHcu
 int                         archHcubDomLoad     (const ArchHcub * const, ArchHcubDom * restrict const, FILE * restrict const);
 int                         archHcubDomSave     (const ArchHcub * const, const ArchHcubDom * const, FILE * restrict const);
 int                         archHcubDomBipart   (const ArchHcub * const, const ArchHcubDom * const, ArchHcubDom * restrict const, ArchHcubDom * restrict const);
+int                         archHcubDomIncl     (const ArchHcub * const, const ArchHcubDom * const, const ArchHcubDom * const);
 #ifdef SCOTCH_PTSCOTCH
 int                         archHcubDomMpiType  (const ArchHcub * const, MPI_Datatype * const);
 #endif /* SCOTCH_PTSCOTCH */
 
 #undef static
+
+#endif /* ARCH_HCUB_H_PROTO */
+#endif /* ARCH_NOPROTO      */

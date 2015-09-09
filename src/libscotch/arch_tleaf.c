@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_tleaf.c                            **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module handles the tree-leaf       **/
 /**                target architecture.                    **/
@@ -62,6 +63,12 @@
 /**                                 to     10 mar 2005     **/
 /**                # Version 5.1  : from : 21 jan 2008     **/
 /**                                 to     11 aug 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     01 jul 2012     **/
+/**                                                        **/
+/**   NOTES      : # The ltleaf architecture was proposed  **/
+/**                  by Emmanuel Jeannot and Francois      **/
+/**                  Tessier.                              **/
 /**                                                        **/
 /************************************************************/
 
@@ -116,6 +123,7 @@ FILE * restrict const       stream)
   }
   archptr->linktab     = archptr->sizetab + archptr->levlnbr + 1; /* TRICK: One more slot     */
   archptr->linktab[-1] = 0;                       /* Dummy slot for for level-0 communication */
+  archptr->permtab     = NULL;                    /* Assume no permutation array              */
 
   for (levlnum = 0, sizeval = 1; levlnum < archptr->levlnbr; levlnum ++) {
     if ((intLoad (stream, &archptr->sizetab[levlnum]) != 1) ||
@@ -123,11 +131,11 @@ FILE * restrict const       stream)
         (archptr->sizetab[levlnum] < 2)                     ||
         (archptr->linktab[levlnum] < 1)) {
       errorPrint ("archTleafArchLoad: bad input (2)");
-      return     (1);
+      return (1);
     }
     sizeval *= archptr->sizetab[levlnum];
   }
-  archptr->sizeval = sizeval;
+  archptr->termnbr = sizeval;
 
   return (0);
 }
@@ -152,10 +160,13 @@ ArchTleaf * const           archptr)
 #endif /* SCOTCH_DEBUG_ARCH1 */
 
   memFree (archptr->sizetab);                     /* Free group leader */
+  if (archptr->permtab != NULL)
+    memFree (archptr->permtab);                   /* Free group leader */
 
 #ifdef SCOTCH_DEBUG_ARCH2
   archptr->sizetab =
-  archptr->linktab = NULL;
+  archptr->linktab =
+  archptr->permtab = NULL;
 #endif /* SCOTCH_DEBUG_ARCH2 */
 
   return (0);
@@ -185,7 +196,7 @@ FILE * restrict const       stream)
 
   if (fprintf (stream, ANUMSTRING,
                (Anum) archptr->levlnbr) == EOF) {
-    errorPrint ("archTleafSave: bad output (1)");
+    errorPrint ("archTleafArchSave: bad output (1)");
     return     (1);
   }
 
@@ -193,7 +204,7 @@ FILE * restrict const       stream)
     if (fprintf (stream, " " ANUMSTRING " " ANUMSTRING,
                  (Anum) archptr->sizetab[levlnum],
                  (Anum) archptr->linktab[levlnum]) == EOF) {
-      errorPrint ("archTleafSave: bad output (2)");
+      errorPrint ("archTleafArchSave: bad output (2)");
       return     (1);
     }
   }
@@ -242,7 +253,7 @@ const ArchDomNum            domnnum)
   }
 #endif /* SCOTCH_DEBUG_ARCH2 */
 
-  if (domnnum < archptr->sizeval) {               /* If valid label */
+  if (domnnum < archptr->termnbr) {               /* If valid label */
     domnptr->levlnum = archptr->levlnbr;          /* Set the domain */
     domnptr->indxmin = domnnum;
     domnptr->indxnbr = 1;
@@ -434,6 +445,52 @@ ArchTleafDom * restrict const dom1ptr)
   return (0);
 }
 
+/* This function checks if dom1 is
+** included in dom0.
+** It returns:
+** - 0  : if dom1 is not included in dom0.
+** - 1  : if dom1 is included in dom0.
+** - 2  : on error.
+*/
+
+int
+archTleafDomIncl (
+const ArchTleaf * const     archptr,
+const ArchTleafDom * const  dom0ptr,
+const ArchTleafDom * const  dom1ptr)
+{
+  Anum                lev0num;
+  Anum                lev1num;
+  Anum                idx0min;
+  Anum                idx1min;
+  Anum                idx0nbr;
+  Anum                idx1nbr;
+
+  const Anum * const  sizetab = archptr->sizetab;
+
+  lev0num = dom0ptr->levlnum;
+  lev1num = dom1ptr->levlnum;
+  idx0min = dom0ptr->indxmin;
+  idx1min = dom1ptr->indxmin;
+  idx0nbr = dom0ptr->indxnbr;
+  idx1nbr = dom1ptr->indxnbr;
+
+  if (lev0num != lev1num) {
+    if (lev1num > lev0num) {
+      idx1nbr = 1;
+      do {
+        lev1num --;
+        idx1min /= sizetab[lev1num];
+      } while (lev1num > lev0num);
+    }
+    else
+      return (0);
+  }
+
+  return (((idx0min >= (idx1min + idx1nbr)) ||
+           (idx1min >= (idx0min + idx0nbr))) ? 0 : 1);
+}
+
 /* This function creates the MPI_Datatype for
 ** tree-leaf domains.
 ** It returns:
@@ -452,3 +509,175 @@ MPI_Datatype * const          typeptr)
   return (0);
 }
 #endif /* SCOTCH_PTSCOTCH */
+
+/***********************************/
+/*                                 */
+/* These are the labeled tree-leaf */
+/* graph routines.                 */
+/*                                 */
+/***********************************/
+
+/* This routine loads the labeled
+** tree leaf architecture.
+** It returns:
+** - 0   : if the architecture has been successfully read.
+** - !0  : on error.
+*/
+
+int
+archLtleafArchLoad (
+ArchTleaf * restrict const  archptr,
+FILE * restrict const       stream)
+{
+  Anum                sizeval;
+  Anum                levlnum;
+  Anum                permnum;
+
+  if (archTleafArchLoad (archptr, stream) != 0)   /* Read tree part */
+    return (1);
+
+  if ((intLoad (stream, &archptr->permnbr) != 1) ||
+      (archptr->permnbr <= 0)) {
+    errorPrint ("archLtleafArchLoad: bad input (1)");
+    return     (1);
+  }
+
+#ifdef SCOTCH_DEBUG_ARCH2
+  if (archptr->permnbr != 1) {                    /* Valid empty permutation is of size 1 */
+    for (levlnum = archptr->levlnbr - 1, sizeval = archptr->sizetab[levlnum];
+         sizeval != archptr->permnbr; levlnum --, sizeval *= archptr->sizetab[levlnum]) {
+      if (levlnum < 0) {
+        errorPrint ("archLtleafArchLoad: permutation size does not match level boundaries");
+        return     (1);
+      }
+    }
+  }
+#endif /* SCOTCH_DEBUG_ARCH2 */
+
+  if ((archptr->permtab = memAlloc (archptr->permnbr * 2 * sizeof (Anum))) == NULL) { /* TRICK: space for peritab too */
+    errorPrint ("archLtleafArchLoad: out of memory");
+    return     (1);
+  }
+
+  for (permnum = 0; permnum < archptr->permnbr; permnum ++) {
+#ifdef SCOTCH_DEBUG_ARCH2
+    Anum                permtmp;
+#endif /* SCOTCH_DEBUG_ARCH2 */
+
+    if ((intLoad (stream, &archptr->permtab[permnum]) != 1) ||
+        (archptr->permtab[permnum] < 0)                     ||
+        (archptr->permtab[permnum] >= archptr->permnbr)) {
+      errorPrint ("archLtleafArchLoad: bad input (2)");
+      return (1);
+    }
+#ifdef SCOTCH_DEBUG_ARCH2
+    for (permtmp = 0; permtmp < permnum; permtmp ++) {
+      if (archptr->permtab[permtmp] == archptr->permtab[permnum]) {
+        errorPrint ("archLtleafArchLoad: duplicate permutation index");
+        return     (1);
+      }
+    }
+#endif /* SCOTCH_DEBUG_ARCH2 */
+  }
+
+  archptr->peritab = archptr->permtab + archptr->permnbr;
+  for (permnum = 0; permnum < archptr->permnbr; permnum ++) /* Build inverse permutation */
+    archptr->peritab[archptr->permtab[permnum]] = permnum;
+
+  return (0);
+}
+
+/* This routine saves the labeled
+** tree leaf architecture.
+** It returns:
+** - 0   : if the architecture has been successfully written.
+** - !0  : on error.
+*/
+
+int
+archLtleafArchSave (
+const ArchTleaf * const     archptr,
+FILE * restrict const       stream)
+{
+  Anum                permnum;
+
+  if (archTleafArchSave (archptr, stream) != 0)   /* Save tree part */
+    return (1);
+
+  if (fprintf (stream, ANUMSTRING,
+               (Anum) archptr->permnbr) == EOF) {
+    errorPrint ("archLtleafArchSave: bad output (1)");
+    return     (1);
+  }
+
+  for (permnum = 0; permnum < archptr->permnbr; permnum ++) {
+    if (fprintf (stream, " " ANUMSTRING,
+                 (Anum) archptr->permtab[permnum]) == EOF) {
+      errorPrint ("archLtleafArchSave: bad output (2)");
+      return     (1);
+    }
+  }
+
+  return (0);
+}
+
+/* This function returns the smallest number
+** of terminal domain included in the given
+** domain.
+*/
+
+ArchDomNum
+archLtleafDomNum (
+const ArchTleaf * const     archptr,
+const ArchTleafDom * const  domnptr)
+{
+  Anum                levlnum;
+  Anum                sizeval;
+  Anum                domnnum;
+  Anum                permnum;
+
+  sizeval = 1;                                    /* Compute size of blocks below */
+  for (levlnum = domnptr->levlnum; levlnum < archptr->levlnbr; levlnum ++)
+    sizeval *= archptr->sizetab[levlnum];
+
+  domnnum = domnptr->indxmin * sizeval;
+  permnum = domnnum % archptr->permnbr;           /* Get non permuted index as terminal domain */
+
+  return (domnnum - permnum + archptr->permtab[permnum]); /* Return permuted index */
+}
+
+/* This function returns the terminal domain associated
+** with the given terminal number in the architecture.
+** It returns:
+** - 0  : if label is valid and domain has been updated.
+** - 1  : if label is invalid.
+** - 2  : on error.
+*/
+
+int
+archLtleafDomTerm (
+const ArchTleaf * const     archptr,
+ArchTleafDom * const        domnptr,
+const ArchDomNum            domnnum)
+{
+#ifdef SCOTCH_DEBUG_ARCH2
+  if (domnnum < 0) {
+    errorPrint ("archLtleafDomTerm: invalid parameter");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_ARCH2 */
+
+  if (domnnum < archptr->termnbr) {               /* If valid label */
+    Anum                permnum;
+
+    permnum = domnnum % archptr->permnbr;         /* Get permuted index as terminal domain */
+
+    domnptr->levlnum = archptr->levlnbr;          /* Set the domain */
+    domnptr->indxmin = domnnum - permnum + archptr->peritab[permnum];
+    domnptr->indxnbr = 1;
+
+    return (0);
+  }
+
+  return (1);                                     /* Cannot set domain */
+}

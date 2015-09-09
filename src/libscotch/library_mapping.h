@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2010,2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : library_mapping.h                       **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module contains the data declara-  **/
 /**                tions for the library ordering          **/
@@ -42,17 +43,31 @@
 /**   DATES      : # Version 4.0  : from : 28 jun 2004     **/
 /**                                 to     28 jun 2004     **/
 /**                # Version 5.1  : from : 04 nov 2010     **/
-/**                                 to     04 nov 2010     **/
+/**                                 to     17 nov 2010     **/
+/**                # Version 6.0  : from : 15 apr 2011     **/
+/**                                 to     23 aug 2014     **/
 /**                                                        **/
 /************************************************************/
+
+/*
+**  The defines.
+*/
+
+/*+ User mapping option flags. +*/
+
+#define LIBMAPPINGNONE              0x0000        /* No options set */
+
+#define LIBMAPPINGFREEPART          0x0001        /* Free parttab array */
 
 /*
 **  The type and structure definitions.
 */
 
-/*+ Ordering. +*/
+/*+ User mapping. +*/
 
 typedef struct LibMapping_ {
-  Mapping                   m;                    /*+ Mapping data    +*/
-  Gnum *                    parttax;              /*+ Partition array +*/
+  Gnum                      flagval;
+  Graph *                   grafptr;              /*+ Graph data        +*/
+  Arch *                    archptr;              /*+ Architecture data +*/
+  Gnum *                    parttab;              /*+ Mapping array     +*/
 } LibMapping;

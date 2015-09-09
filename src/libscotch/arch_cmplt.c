@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2010,2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_cmplt.c                            **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module handles the complete graph  **/
 /**                target architecture.                    **/
@@ -60,6 +61,8 @@
 /**                                 to     10 mar 2005     **/
 /**                # Version 5.1  : from : 19 jan 2008     **/
 /**                                 to     11 aug 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     14 fev 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -298,6 +301,27 @@ ArchCmpltDom * restrict const dom1ptr)
   dom0ptr->numnbr = domptr->numnbr / 2;
   dom1ptr->nummin = domptr->nummin + dom0ptr->numnbr;
   dom1ptr->numnbr = domptr->numnbr - dom0ptr->numnbr;
+
+  return (0);
+}
+
+/* This function checks if dom1 is
+** included in dom0.
+** It returns:
+** - 0  : if dom1 is not included in dom0.
+** - 1  : if dom1 is included in dom0.
+** - 2  : on error.
+*/
+
+int
+archCmpltDomIncl (
+const ArchCmplt * const     archptr,
+const ArchCmpltDom * const  dom0ptr,
+const ArchCmpltDom * const  dom1ptr)
+{
+  if ((dom1ptr->nummin >= dom0ptr->nummin) &&
+      ((dom1ptr->nummin + dom1ptr->numnbr) <= (dom0ptr->nummin + dom0ptr->numnbr)))
+    return (1);
 
   return (0);
 }

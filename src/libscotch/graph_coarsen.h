@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2011-2013,2015 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : graph_coarsen.h                         **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declarations   **/
 /**                for the source graph coarsening         **/
@@ -53,6 +54,8 @@
 /**                                 to     17 sep 1998     **/
 /**                # Version 4.0  : from : 13 dec 2001     **/
 /**                                 to     05 dec 2004     **/
+/**                # Version 6.0  : from : 09 mar 2011     **/
+/**                                 to     27 feb 2015     **/
 /**                                                        **/
 /************************************************************/
 
@@ -60,13 +63,13 @@
 **  The defines.
 */
 
-/** Prime number for cache-friendly perturbations. **/
-
-#define GRAPHCOARPERTPRIME          179           /* Prime number */
+#ifdef SCOTCH_PTHREAD
+#define GRAPHCOARSENTHREAD
+#endif /* SCOTCH_PTHREAD */
 
 /** Prime number for hashing vertex numbers. **/
 
-#define GRAPHCOARHASHPRIME          1049          /* Prime number */
+#define GRAPHCOARSENHASHPRIME       1049          /* Prime number */
 
 /*
 **  The type and structure definitions.
@@ -75,11 +78,9 @@
 /*+ Here are the edge matching function types for coarsening. +*/
 
 typedef enum GraphCoarsenType_ {
-  GRAPHCOARHEM,                                   /*+ Heavy-edge matching         +*/
-  GRAPHCOARSCN,                                   /*+ Scanning (first) matching   +*/
-  GRAPHCOARCSC,                                   /*+ Crystal scanning matching   +*/
-  GRAPHCOARCHE,                                   /*+ Crystal heavy-edge matching +*/
-  GRAPHCOARNBR                                    /*+ Number of matching types    +*/
+  GRAPHCOARHEM,                                   /*+ Heavy-edge matching       +*/
+  GRAPHCOARSCN,                                   /*+ Scanning (first) matching +*/
+  GRAPHCOARNBR                                    /*+ Number of matching types  +*/
 } GraphCoarsenType;
 
 /*+ The multinode table element, which contains
@@ -104,6 +105,50 @@ typedef struct GraphCoarsenHash_ {
   Gnum                      edgenum;              /*+ Number of corresponding edge     +*/
 } GraphCoarsenHash;
 
+/*+ The matching and coarsening routine
+    parameter structure. It contains the
+    thread-independent data.             +*/
+
+typedef struct GraphCoarsenData_ {
+  ThreadGroupHeader         thrddat;              /*+ Thread handling data                            +*/
+  const Graph *             finegrafptr;          /*+ Fine graph to perform matching on               +*/
+  const Anum *              fineparotax;          /*+ Old part array                                  +*/
+  const Anum *              finepfixtax;          /*+ Array of fixed vertices                         +*/
+  Gnum                      finevfixnbr;          /*+ Number of fine fixed vertices                   +*/
+  Gnum *                    finematetax;          /*+ Fine mate array / fine-to-coarse array          +*/
+  Graph *                   coargrafptr;          /*+ Coarse graph to build                           +*/
+  Gnum                      coarvertmax;          /*+ Maximum number of vertices to get               +*/
+  Gnum                      coarvertnbr;          /*+ Global number of coarse vertices after matching +*/
+  Gnum *                    coarvfixptr;          /*+ Pointer to number of coarse fixed vertices      +*/
+  GraphCoarsenMulti *       coarmulttab;          /*+ Multinode array                                 +*/
+  Gnum                      coarhashmsk;          /*+ Hash table mask                                 +*/
+#ifdef SCOTCH_PTHREAD
+  int * restrict            finelocktax;          /*+ Matching lock array (if any)                    +*/
+  Gnum * restrict           finequeutab;          /*+ Matching queue array (if any)                   +*/
+  void                   (* fendptr) (void *);    /*+ Pointer to final / sequential match routine     +*/
+  void                   (* fmidptr) (void *);    /*+ Pointer to intermediate match routine (if any)  +*/
+#endif /* SCOTCH_PTHREAD */
+  void                   (* fbegptr) (void *);    /*+ Pointer to beginning match routine (if any)     +*/
+} GraphCoarsenData;
+
+/*+ The thread-specific data block. +*/
+
+typedef struct GraphCoarsenThread_ {
+  ThreadHeader              thrddat;              /*+ Thread management data                                    +*/
+  Gunum                     randval;              /*+ Per-thread unsigned random value                          +*/
+  GraphCoarsenHash *        coarhashtab;          /*+ End vertex hash table (may be local)                      +*/
+  Gnum                      coarvertnnd;          /*+ After-last coarse vertex number                           +*/
+  Gnum                      coarvertbas;          /*+ Minimum coarse vertex number; for prefix scan             +*/
+  Gnum                      coarvertnbr;          /*+ Number of coarse vertices to date; TRICK: scan dummy area +*/
+  Gnum                      coaredloadj;          /*+ (Local) coarse edge load sum adjust                       +*/
+  Gnum                      coardegrmax;          /*+ (Local) maximum degree                                    +*/
+  Gnum                      coaredgebas;          /*+ Minimum coarse edge number; for prefix scan               +*/
+  Gnum                      finevertbas;          /*+ Start of fine vertex range; TRICK: scan dummy area        +*/
+  Gnum                      finevertnnd;          /*+ End of fine vertex range                                  +*/
+  Gnum                      finequeubas;          /*+ Minimum perturbation or queue index for matching          +*/
+  Gnum                      finequeunnd;          /*+ After-last perturbation or queue index for matching       +*/
+} GraphCoarsenThread;
+
 /*
 **  The function prototypes.
 */
@@ -112,14 +157,13 @@ typedef struct GraphCoarsenHash_ {
 #define static
 #endif
 
-int                         graphCoarsen        (const Graph * restrict const, Graph * restrict const, GraphCoarsenMulti * restrict * const, const Gnum, const double, const GraphCoarsenType);
+int                         graphCoarsen        (const Graph * restrict const, Graph * restrict const, GraphCoarsenMulti * restrict * const, const Gnum, const double, const Anum * restrict const, const Anum * restrict const, const Gnum, Gnum * restrict const);
+int                         graphCoarsenBuild   (const Graph * restrict const, Graph * restrict const, GraphCoarsenMulti * restrict * const, const Gnum, Gnum * restrict const);
 
-static void                 graphCoarsenEdgeLl  (const Graph * const, const Gnum * const, const GraphCoarsenMulti * restrict const, Graph * const, GraphCoarsenHash * const, const Gnum);
-static void                 graphCoarsenEdgeLu  (const Graph * const, const Gnum * const, const GraphCoarsenMulti * restrict const, Graph * const, GraphCoarsenHash * const, const Gnum);
-
-static Gnum                 graphCoarsenMatchHy (const Graph * const, Gnum *, const Gnum, const Gnum);
-static Gnum                 graphCoarsenMatchSc (const Graph * const, Gnum *, const Gnum, const Gnum);
-static Gnum                 graphCoarsenMatchCs (const Graph * const, Gnum *, const Gnum, const Gnum);
-static Gnum                 graphCoarsenMatchCh (const Graph * const, Gnum *, const Gnum, const Gnum);
+#ifdef GRAPHCOARSENTHREAD
+static void                 graphCoarsenEdgeCt  (GraphCoarsenThread *);
+#endif /* GRAPHCOARSENTHREAD */
+static void                 graphCoarsenEdgeLl  (GraphCoarsenThread *);
+static void                 graphCoarsenEdgeLu  (GraphCoarsenThread *);
 
 #undef static

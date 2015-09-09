@@ -1,4 +1,4 @@
-## Copyright 2004,2007-2010 ENSEIRB, INRIA & CNRS
+## Copyright 2004,2007-2010,2012,2015 IPB, Universite de Bordeaux, INRIA & CNRS
 ##
 ## This file is part of the Scotch software package for static mapping,
 ## graph partitioning and sparse matrix ordering.
@@ -44,7 +44,7 @@ include ../Makefile.inc
 				$(CC) $(CFLAGS) $(CLIBFLAGS) -I$(includedir) -c $(<) -o $(@)
 
 %$(EXE)	:	%.c
-		 		$(CC) $(CFLAGS) -I$(includedir) $(<) -o $(@) -L$(libdir) $(LDFLAGS) -L. -l$(ESMUMPSLIB) -l$(SCOTCHLIB) -l$(SCOTCHLIB)errexit
+		 		$(CC) $(CFLAGS) -I$(includedir) $(<) -o $(@) -L$(libdir) $(LDFLAGS) -L. -l$(ESMUMPSLIB) -l$(SCOTCHLIB) -lscotch -l$(SCOTCHLIB)errexit -lm
 
 ##
 ##  Project rules.
@@ -58,8 +58,8 @@ scotch				:	clean
 					main_esmumps$(EXE)
 
 ptscotch			:	clean
-					$(MAKE) CFLAGS="$(CFLAGS) -DSCOTCH_PTSCOTCH" CC=$(CCP) SCOTCHLIB=ptscotch ESMUMPSLIB=ptesmumps	\
-					libesmumps$(LIB)										\
+					$(MAKE) CFLAGS="$(CFLAGS) -DSCOTCH_PTSCOTCH" CC="$(CCP)" SCOTCHLIB=ptscotch ESMUMPSLIB=ptesmumps	\
+					libesmumps$(LIB)											\
 					main_esmumps$(EXE)
 
 install				:
@@ -81,7 +81,7 @@ realclean			:	clean
 
 common.h			:	../libscotch/common.h			\
 					module.h
-					$(CAT) $(^) > $(@)
+					$(CAT) module.h ../libscotch/common.h > $(@)
 
 graph_graph$(OBJ)		:	graph_graph.c				\
 					common.h				\

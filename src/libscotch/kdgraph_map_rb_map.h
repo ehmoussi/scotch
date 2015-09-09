@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : kdgraph_map_rb_map.h                    **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                Francois PELLEGRINI                     **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/

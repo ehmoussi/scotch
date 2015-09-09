@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : mapping_io.c                            **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module handles (partial) mappings. **/
 /**                                                        **/
@@ -65,6 +66,8 @@
 /**                                 to     27 feb 2008     **/
 /**                # Version 5.1  : from : 11 aug 2010     **/
 /**                                 to     11 aug 2010     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     22 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -96,7 +99,8 @@
 ** - 2   : variable-sized architectures cannot be loaded.
 */
 
-int
+/* TODO remove it */
+int /* TODO copy the one from gout? */
 mapLoad (
 Mapping * restrict const        mappptr,
 const Gnum * restrict const     vlbltab,
@@ -110,11 +114,11 @@ FILE * restrict const           stream)
   Anum                  archnbr;                  /* Size of the target architecture   */
   ArchDom               fdomdat;                  /* First domain of architecture      */
 
-  if (strcmp (archName (&mappptr->archdat), "term") == 0) /* If target architecture is variable-sized */
+  if (strcmp (archName (mappptr->archptr), "term") == 0) /* If target architecture is variable-sized */
     return (2);
 
-  archDomFrst (&mappptr->archdat, &fdomdat);      /* Get architecture size */
-  archnbr = archDomSize (&mappptr->archdat, &fdomdat);
+  archDomFrst (mappptr->archptr, &fdomdat);      /* Get architecture size */
+  archnbr = archDomSize (mappptr->archptr, &fdomdat);
   if (mappptr->domnmax < (archnbr + 1)) {         /* If mapping array too small to store mapping data */
     ArchDom * restrict    domntab;
 
@@ -127,9 +131,9 @@ FILE * restrict const           stream)
     mappptr->domntab = domntab;
   }
   mappptr->domnnbr = archnbr + 1;                 /* One more for first domain, for unmapped vertices                 */
-  archDomFrst (&mappptr->archdat, &mappptr->domntab[0]); /* Set first domain with root domain data                    */
+  archDomFrst (mappptr->archptr, &mappptr->domntab[0]); /* Set first domain with root domain data                    */
   for (mappnum = 0; mappnum < archnbr; mappnum ++) /* For all terminal domain numbers                                 */
-    archDomTerm (&mappptr->archdat, &mappptr->domntab[mappnum + 1], mappnum); /* Set domain with terminal domain data */
+    archDomTerm (mappptr->archptr, &mappptr->domntab[mappnum + 1], mappnum); /* Set domain with terminal domain data */
 
   if ((intLoad (stream, &mappnbr) != 1) ||        /* Read number of mapping entries */
       (mappnbr < 1)) {
@@ -139,7 +143,7 @@ FILE * restrict const           stream)
 
   if (memAllocGroup ((void **) (void *)
                      &mapptab, (size_t) (mappnbr          * sizeof (MappingLoadMap)),
-                     &permtab, (size_t) (mappptr->vertnbr * sizeof (MappingLoadPerm)), NULL) == NULL) {
+                     &permtab, (size_t) (mappptr->grafptr->vertnbr * sizeof (MappingLoadPerm)), NULL) == NULL) {
     errorPrint ("mapLoad: out of memory (2)");
     return     (1);
   }
@@ -156,23 +160,23 @@ FILE * restrict const           stream)
   if (vlbltab != NULL) {                          /* If graph has vertex labels */
     Gnum                vertnum;
 
-    for (vertnum = 0; vertnum < mappptr->vertnbr; vertnum ++) { /* Build inverse permutation */
-      permtab[vertnum].vertnum = vertnum + mappptr->baseval;
+    for (vertnum = 0; vertnum < mappptr->grafptr->vertnbr; vertnum ++) { /* Build inverse permutation */
+      permtab[vertnum].vertnum = vertnum + mappptr->grafptr->baseval;
       permtab[vertnum].vlblnum = vlbltab[vertnum];
     }
-    intSort2asc1 (permtab, mappptr->vertnbr);     /* Sort vertex array by increasing labels */
+    intSort2asc1 (permtab, mappptr->grafptr->vertnbr); /* Sort vertex array by increasing labels */
   }
   else {
     Gnum                vertnum;
 
-    for (vertnum = 0; vertnum < mappptr->vertnbr; vertnum ++) { /* Build identity permutation */
-      permtab[vertnum].vertnum = vertnum + mappptr->baseval;
-      permtab[vertnum].vlblnum = vertnum + mappptr->baseval;
+    for (vertnum = 0; vertnum < mappptr->grafptr->vertnbr; vertnum ++) { /* Build identity permutation */
+      permtab[vertnum].vertnum = vertnum + mappptr->grafptr->baseval;
+      permtab[vertnum].vlblnum = vertnum + mappptr->grafptr->baseval;
     }
   }
 
   for (vertnum = 0, mappnum = 0;                  /* For all graph vertices */
-       vertnum < mappptr->vertnbr; vertnum ++) {
+       vertnum < mappptr->grafptr->vertnbr; vertnum ++) {
     while ((mappnum < mappnbr) &&                 /* Skip useless mapping data (if graph is subgraph of originally mapped graph) */
            (permtab[vertnum].vlblnum > mapptab[mappnum].slblnum))
       mappnum ++;
@@ -202,24 +206,30 @@ FILE * restrict const           stream)
 int
 mapSave (
 const Mapping * restrict const  mappptr,
-const Gnum * restrict const     vlbltab,
 FILE * restrict const           stream)
 {
-  const Gnum * restrict vlbltax;
+
+  Gnum                  vertnnd;
   Gnum                  vertnum;
 
-  vlbltax = (vlbltab != NULL) ? (vlbltab - mappptr->baseval) : NULL;
+  const Arch * restrict const     archptr = mappptr->archptr;
+  const ArchDom * restrict const  domntab = mappptr->domntab;
+  const Anum * restrict const     parttax = mappptr->parttax;
+  const Gnum * restrict const     vlbltax = mappptr->grafptr->vlbltax;
+
+  vertnum = mappptr->grafptr->baseval;
+  vertnnd = mappptr->grafptr->vertnbr;            /* Un-based number at first */
 
   if (fprintf (stream, GNUMSTRING "\n",
-               (Gnum) mappptr->vertnbr) == EOF) {
+               (Gnum) vertnnd) == EOF) {
     errorPrint ("mapSave: bad output (1)");
     return     (1);
   }
 
-  for (vertnum = mappptr->baseval; vertnum < (mappptr->vertnbr + mappptr->baseval); vertnum ++) {
+  for (vertnnd += vertnum; vertnum < vertnnd; vertnum ++) {
     if (fprintf (stream, GNUMSTRING "\t" ANUMSTRING "\n",
                  (Gnum) ((vlbltax != NULL) ? vlbltax[vertnum] : vertnum),
-                 (Anum) archDomNum (&mappptr->archdat, &mappptr->domntab[mappptr->parttax[vertnum]])) == EOF) {
+                 (Anum) (parttax != NULL) ? archDomNum (archptr, &domntab[parttax[vertnum]]) : -1) == EOF) {
       errorPrint ("mapSave: bad output (2)");
       return     (1);
     }

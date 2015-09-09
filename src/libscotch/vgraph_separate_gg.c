@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -49,6 +49,8 @@
 /**                                 to     24 mar 2008     **/
 /**                # Version 5.1  : from : 09 nov 2008     **/
 /**                                 to     09 nov 2008     **/
+/**                # Version 6.0  : from : 04 feb 2012     **/
+/**                                 to     04 feb 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -102,6 +104,14 @@ const VgraphSeparateGgParam * const paraptr)      /*+ Method parameters +*/
   Gnum                              compsize1;
   Gnum                              compsize2;
 
+  const Gnum * restrict const verttax = grafptr->s.verttax;
+  const Gnum * restrict const vendtax = grafptr->s.vendtax;
+  const Gnum * restrict const velotax = grafptr->s.velotax;
+  const Gnum * restrict const edgetax = grafptr->s.edgetax;
+  const Gnum * restrict const edlotax = grafptr->s.edlotax;
+  GraphPart * restrict const  parttax = grafptr->parttax;
+  Gnum * restrict const       frontab = grafptr->frontab;
+
   if (((tablptr = gainTablInit (GAIN_LINMAX, VGRAPHSEPAGGSUBBITS)) == NULL) || /* Use logarithmic array only */
       ((vexxtax = (VgraphSeparateGgVertex *) memAlloc (grafptr->s.vertnbr * sizeof (VgraphSeparateGgVertex))) == NULL)) {
     errorPrint ("vgraphSeparateGg: out of memory (1)");
@@ -144,17 +154,17 @@ const VgraphSeparateGgParam * const paraptr)      /*+ Method parameters +*/
 #endif /* SCOTCH_DEBUG_GAIN2 */
 
       vertnum = vexxptr - vexxtax;                /* Get root vertex based number */
-      if (grafptr->s.velotax == NULL) {           /* If vertices not weighted     */
+      if (velomsk == 0) {                         /* If vertices are not weighted */
         veloval   = 1;
-        compgain2 = grafptr->s.vendtax[vertnum] - grafptr->s.verttax[vertnum] - 1;
+        compgain2 = vendtax[vertnum] - verttax[vertnum] - 1;
       }
       else {                                      /* Graph vertices are weighted */
         Gnum                        edgenum;
 
-        veloval   = grafptr->s.velotax[vertnum];
+        veloval   = velobax[vertnum];
         compgain2 = - veloval;
-        for (edgenum = grafptr->s.verttax[vertnum]; edgenum < grafptr->s.vendtax[vertnum]; edgenum ++)
-          compgain2 += grafptr->s.velotax[grafptr->s.edgetax[edgenum]];
+        for (edgenum = verttax[vertnum]; edgenum < vendtax[vertnum]; edgenum ++)
+          compgain2 += velobax[edgetax[edgenum]];
       }
       vexxptr->compgain2 = compgain2;             /* Set root gain (root not in separator) */
       comploaddlt -= veloval;                     /* Move vertex from part 0 to separator  */
@@ -178,13 +188,13 @@ const VgraphSeparateGgParam * const paraptr)      /*+ Method parameters +*/
         compload2   += vexxptr->compgain2;        /* Update partition parameters */
         comploaddlt -= vexxptr->compgain2 + 2 * veloval;           
 
-        sepaptr = NULL;                             /* No separator vertices to relink yet */
-        for (edgenum = grafptr->s.verttax[vertnum]; /* (Re-)link neighbor vertices         */
-             edgenum < grafptr->s.vendtax[vertnum]; edgenum ++) {
+        sepaptr = NULL;                           /* No separator vertices to relink yet */
+        for (edgenum = verttax[vertnum];          /* (Re-)link neighbor vertices         */
+             edgenum < vendtax[vertnum]; edgenum ++) {
           Gnum                        vertend;
           VgraphSeparateGgVertex *    vexxend;
 
-          vertend = grafptr->s.edgetax[edgenum];  /* Point to end vertex */
+          vertend = edgetax[edgenum];             /* Point to end vertex */
           vexxend = vexxtax + vertend;
           if (vexxend->gainlink.next == VGRAPHSEPAGGSTATEPART0) { /* If end in part 0 */
             Gnum                veloend;
@@ -197,12 +207,12 @@ const VgraphSeparateGgParam * const paraptr)      /*+ Method parameters +*/
 
             veloend   = velobax[vertend & velomsk];
             compgain2 = - veloend;
-            for (edgtnum = grafptr->s.verttax[vertend];
-                 edgtnum < grafptr->s.vendtax[vertend]; edgtnum ++) {
+            for (edgtnum = verttax[vertend];
+                 edgtnum < vendtax[vertend]; edgtnum ++) {
               Gnum                        vertent;
               VgraphSeparateGgVertex *    vexxent;
 
-              vertent = grafptr->s.edgetax[edgtnum]; /* Point to end vertex */
+              vertent = edgetax[edgtnum];         /* Point to end vertex */
               vexxent = vexxtax + vertent;
               if (vexxent->gainlink.next == VGRAPHSEPAGGSTATEPART0)
                 compgain2 += velobax[vertent & velomsk];
@@ -256,7 +266,7 @@ const VgraphSeparateGgParam * const paraptr)      /*+ Method parameters +*/
       grafptr->compload[2] = compload2;
 
       for (vertnum = grafptr->s.baseval; vertnum < grafptr->s.vertnnd; vertnum ++) /* Copy bipartition state */
-        grafptr->parttax[vertnum] = (vexxtax[vertnum].gainlink.next <= VGRAPHSEPAGGSTATEPART2) ? (GraphPart) (intptr_t) vexxtax[vertnum].gainlink.next : (GraphPart) 2;
+        parttax[vertnum] = (vexxtax[vertnum].gainlink.next <= VGRAPHSEPAGGSTATEPART2) ? (GraphPart) (intptr_t) vexxtax[vertnum].gainlink.next : (GraphPart) 2;
     }
   }
 
@@ -273,11 +283,11 @@ const VgraphSeparateGgParam * const paraptr)      /*+ Method parameters +*/
        vertnum < grafptr->s.vertnnd; vertnum ++) {
     Gnum                partval;
 
-    partval    = (Gnum) grafptr->parttax[vertnum];
+    partval    = (Gnum) parttax[vertnum];
     compsize1 += (partval & 1);                   /* Superscalar update */
     compsize2 += (partval >> 1);
     if (partval == 2)                             /* If vertex belongs to frontier */
-      grafptr->frontab[fronnum ++] = vertnum;     /* Record it in frontier array   */
+      frontab[fronnum ++] = vertnum;              /* Record it in frontier array   */
   }
   grafptr->compsize[0] = grafptr->s.vertnbr - compsize1 - compsize2;
   grafptr->compsize[1] = compsize1;

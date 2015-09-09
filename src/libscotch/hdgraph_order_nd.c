@@ -1,4 +1,4 @@
-/* Copyright 2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2008,2012 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -42,6 +42,8 @@
 /**                                 to     01 mar 2008     **/
 /**                # Version 5.1  : from : 27 sep 2008     **/
 /**                                 to     11 nov 2008     **/
+/**                # Version 6.0  : from : 12 sep 2012     **/
+/**                                 to     12 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -345,6 +347,7 @@ const HdgraphOrderNdParam * restrict const  paraptr)
 
     cblkptr->data.nedi.cblkglbnbr = 3;            /* It is a three-cell node */
 
+    dgraphInit (&indgrafdat2.s, grafptr->s.proccomm); /* Re-use original graph communicator                                                   */
     if (dgraphInduceList (&grafptr->s, vspgrafdat.complocsize[2], /* Perform non-halo induction for separator, as it will get highest numbers */
                           vspgrafdat.fronloctab, &indgrafdat2.s) != 0) {
       errorPrint ("hdgraphOrderNd: cannot build induced subgraph (1)");

@@ -1,4 +1,4 @@
-/* Copyright 2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -38,7 +38,7 @@
 /**                Sebastien FOUCAULT (P0.0)               **/
 /**                Nicolas GICQUEL (P0.1)                  **/
 /**                Jerome LACOSTE (P0.1)                   **/
-/**                Cedric CHEVALIER (5.0)                  **/
+/**                Cedric CHEVALIER (v5.0)                 **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declarations   **/
 /**                for the distributed source graph        **/
@@ -55,13 +55,19 @@
 /**                # Version 5.0  : from : 22 jul 2005     **/
 /**                                 to   : 03 aug 2007     **/
 /**                # Version 5.1  : from : 11 nov 2007     **/
-/**                                 to   : 04 nov 2010     **/
+/**                                 to   : 20 feb 2011     **/
+/**                # Version 6.0  : from : 30 aug 2012     **/
+/**                                 to   : 26 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
 #define DGRAPH_H
 
 #define PTSCOTCH_FOLD_DUP                         /* Activate folding on coarsening */
+
+#ifndef SCOTCH_COMM_PTOP_RAT
+#define SCOTCH_COMM_PTOP_RAT        0.25          /* Percentage under which point-to-point is allowed */
+#endif /* SCOTCH_COMM_PTOP_RAT */
 
 /*
 ** The defines.
@@ -80,9 +86,10 @@
 #define DGRAPHVERTGROUP             0x0040        /* All vertex arrays grouped           */
 #define DGRAPHEDGEGROUP             0x0080        /* All edge arrays grouped             */
 #define DGRAPHFREEALL               (DGRAPHFREEPRIV | DGRAPHFREECOMM | DGRAPHFREETABS | DGRAPHFREEPSID  | DGRAPHFREEEDGEGST)
+#define DGRAPHCOMMPTOP              0x0100        /* Use point-to-point collective communication */
 
-#define DGRAPHBITSUSED              0x00FF        /* Significant bits for plain distributed graph routines               */
-#define DGRAPHBITSNOTUSED           0x0100        /* Value above which bits not used by plain distributed graph routines */
+#define DGRAPHBITSUSED              0x01FF        /* Significant bits for plain distributed graph routines               */
+#define DGRAPHBITSNOTUSED           0x0200        /* Value above which bits not used by plain distributed graph routines */
 
 /* Used in algorithms */
 
@@ -119,10 +126,11 @@ typedef enum DgraphTag_ {
   TAGDATALOCTAB,                                  /*+ Generic data message     +*/
   TAGOK,                                          /*+ Positive answer          +*/
   TAGBAD,                                         /*+ Negative answer          +*/
-  TAGCOARSEN = 100,                               /*+ Tag class for coarsening +*/
-  TAGMATCH   = 200,                               /*+ Tag class for matching   +*/
-  TAGFOLD    = 300,                               /*+ Tag class for folding    +*/
-  TAGBAND    = 400                                /*+ Tag class for band graph +*/
+  TAGHALO    = 100,                               /*+ Tag class for halo       +*/
+  TAGCOARSEN = 200,                               /*+ Tag class for coarsening +*/
+  TAGMATCH   = 300,                               /*+ Tag class for matching   +*/
+  TAGFOLD    = 400,                               /*+ Tag class for folding    +*/
+  TAGBAND    = 500                                /*+ Tag class for band graph +*/
 } DgraphTag;
 
 /*+ The graph flag type. +*/
@@ -198,12 +206,12 @@ int                         dgraphCheck         (const Dgraph * const);
 int                         dgraphView          (const Dgraph * const, FILE * const);
 int                         dgraphGhst2         (Dgraph * const, const int);
 int                         dgraphBand          (Dgraph * restrict const, const Gnum, Gnum * restrict const, const GraphPart * restrict const, const Gnum, const Gnum, Gnum, Dgraph * restrict const, Gnum * restrict * const, GraphPart * restrict * const, Gnum * const, Gnum * const, Gnum * const);
-int                  dgraphBandColl      (Dgraph * restrict const, const Gnum, Gnum * restrict const, const Gnum, Gnum * restrict * restrict const, Gnum * restrict const, Gnum * restrict const, Gnum * restrict const);
-int                  dgraphBandPtop      (Dgraph * restrict const, const Gnum, Gnum * restrict const, const Gnum, Gnum * restrict * restrict const, Gnum * restrict const, Gnum * restrict const, Gnum * restrict const);
 
 int                         dgraphFold          (const Dgraph * restrict const, const int, Dgraph * restrict const, const void * restrict const, void ** restrict const, MPI_Datatype);
 int                         dgraphFold2         (const Dgraph * restrict const, const int, Dgraph * restrict const, MPI_Comm, const void * restrict const, void ** restrict const, MPI_Datatype);
 int                         dgraphFoldDup       (const Dgraph * restrict const, Dgraph * restrict const, void * restrict const, void ** restrict const, MPI_Datatype);
+int                         dgraphInduce2       (Dgraph * restrict const, Gnum (*) (Dgraph * restrict const, Dgraph * restrict const, const void * restrict const, Gnum * restrict const), const void * const, const Gnum, Gnum *, Dgraph * restrict const);
+
 int                         dgraphInduceList    (Dgraph * const, const Gnum, const Gnum * const, Dgraph * const);
 int                         dgraphInducePart    (Dgraph * const, const GraphPart * restrict const, const Gnum, const GraphPart, Dgraph * const);
 #ifdef GRAPH_H

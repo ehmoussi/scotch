@@ -1,4 +1,4 @@
-/* Copyright 2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2008,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -42,7 +42,9 @@
 /**                graph.                                  **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 16 nov 2007     **/
-/**                                 to   : 09 nov 2008     **/
+/**                                 to   : 19 jul 2011     **/
+/**                # Version 6.0  : from : 11 sep 2011     **/
+/**                                 to   : 31 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -58,13 +60,6 @@
 #include "dgraph.h"
 #include "bdgraph.h"
 #include "bdgraph_bipart_df.h"
-
-/*
-**  The static variables.
-*/
-
-static const Gnum           bdgraphbipartdfloadone  = 1;
-static const Gnum           bdgraphbipartdfloadzero = 0;
 
 /*****************************/
 /*                           */
@@ -86,7 +81,7 @@ Bdgraph * const                     grafptr,      /*+ Distributed graph +*/
 const BdgraphBipartDfParam * const  paraptr)      /*+ Method parameters +*/
 {
   float * restrict        ielsloctax;             /* Inverse of degree array   */
-  float * restrict        veexloctax;             /* Veexval over domdist      */
+  float * restrict        veexloctax;             /* Veexval over domndist     */
   float * restrict        difogsttax;             /* Old diffusion value array */
   float * restrict        difngsttax;             /* New diffusion value array */
   const Gnum * restrict   edgegsttax;
@@ -96,10 +91,6 @@ const BdgraphBipartDfParam * const  paraptr)      /*+ Method parameters +*/
   float                   valolocval[2];          /* Fraction of load to remove from anchor vertices at each step */
   Gnum                    vanclocnnd;
   Gnum                    vertlocnum;
-  const Gnum * restrict   velolocbax;
-  Gnum                    velolocmsk;
-  const Gnum * restrict   edlolocbax;
-  Gnum                    edlolocmsk;
   Gnum                    complocload1;
   Gnum                    complocsize1;
   Gnum                    commlocloadintn;
@@ -111,6 +102,9 @@ const BdgraphBipartDfParam * const  paraptr)      /*+ Method parameters +*/
   float                   cdifval;
   float                   cremval;
   int                     ovflval;                /* Overflow flag value */
+
+  const Gnum * restrict const veloloctax = grafptr->s.veloloctax;
+  const Gnum * restrict const edloloctax = grafptr->s.edloloctax;
 
   if (dgraphGhst (&grafptr->s) != 0) {            /* Compute ghost edge array if not already present */
     errorPrint ("bdgraphBipartDf: cannot compute ghost edge array");
@@ -163,11 +157,10 @@ const BdgraphBipartDfParam * const  paraptr)      /*+ Method parameters +*/
     return  (0);
   }
 
-  vanclocval[0] = (float) grafptr->compglbload0;
-  if (vanclocval[0] < (grafptr->compglbload0avg * (1.0F - (float) paraptr->deltval))) /* Enforce balance constraint */
-    vanclocval[0] = grafptr->compglbload0avg * (1.0F - (float) paraptr->deltval);
-  else if (vanclocval[0] > (grafptr->compglbload0avg * (1.0F + (float) paraptr->deltval)))
-    vanclocval[0] = grafptr->compglbload0avg * (1.0F + (float) paraptr->deltval);
+  vanclocval[0] = (float) ((paraptr->typeval == BDGRAPHBIPARTDFTYPEBAL) /* If balanced parts wanted */
+                           ? grafptr->compglbload0avg /* Target is average                          */
+                           : ( (grafptr->compglbload0 < grafptr->compglbload0min) ? grafptr->compglbload0min : /* Else keep load if not off balance */
+                              ((grafptr->compglbload0 > grafptr->compglbload0max) ? grafptr->compglbload0max : grafptr->compglbload0)));
   vanclocval[1] = (float) grafptr->s.veloglbsum - vanclocval[0];
   vanclocval[0] = - vanclocval[0];                /* Part 0 holds negative values                         */
   valolocval[0] = (float) reduglbtab[2];          /* Compute values to remove from anchor vertices        */
@@ -319,23 +312,6 @@ abort :                                           /* If overflow occured, resume
   grafptr->partgsttax[vanclocnnd]     = 0;        /* Set up parts in case anchors are isolated */
   grafptr->partgsttax[vanclocnnd + 1] = 1;
 
-  if (grafptr->s.veloloctax != NULL) {
-    velolocbax = grafptr->s.veloloctax;
-    velolocmsk = ~((Gnum) 0);
-  }
-  else {
-    velolocbax = &bdgraphbipartdfloadone;
-    velolocmsk = 0;
-  }
-  if (grafptr->s.edloloctax != NULL) {
-    edlolocbax = grafptr->s.edloloctax;
-    edlolocmsk = ~((Gnum) 0);
-  }
-  else {
-    edlolocbax = &bdgraphbipartdfloadone;
-    edlolocmsk = 0;
-  }
-
   memFree (ielsloctax + grafptr->s.baseval);      /* Free group leader */
 
   if (dgraphHaloSync (&grafptr->s, (byte *) (void *) (grafptr->partgsttax + grafptr->s.baseval), GRAPHPART_MPI) != 0) {
@@ -361,7 +337,7 @@ abort :                                           /* If overflow occured, resume
     }
 #endif /* SCOTCH_DEBUG_BDGRAPH2 */
     partval = (Gnum) grafptr->partgsttax[vertlocnum];
-    veloval = velolocbax[vertlocnum & velolocmsk];
+    veloval = (veloloctax != NULL) ? veloloctax[vertlocnum] : 1;
     if (grafptr->veexloctax != NULL) {
       commlocloadextn += grafptr->veexloctax[vertlocnum] * partval;
       commlocgainextn += grafptr->veexloctax[vertlocnum] * (1 - partval * 2);
@@ -383,7 +359,7 @@ abort :                                           /* If overflow occured, resume
         break;                                    /* Do not break upcoming collective communications */
       }
 #endif /* SCOTCH_DEBUG_BDGRAPH2 */
-      edloval  = edlolocbax[edgelocnum & edlolocmsk];
+      edloval  = (edloloctax != NULL) ? edloloctax[edgelocnum] : 1;
       flagval |= partval ^ partend;
       commlocloadintn += (partval ^ partend) * edloval; /* Internal load is accounted for twice */
     }
@@ -408,8 +384,9 @@ abort :                                           /* If overflow occured, resume
   grafptr->compglbload0    = reduglbtab[1];
   grafptr->compglbload0dlt = grafptr->compglbload0 - grafptr->compglbload0avg;
   grafptr->compglbsize0    = reduglbtab[2];
-  grafptr->commglbload     = (reduglbtab[3] / 2) * grafptr->domdist + reduglbtab[4];
+  grafptr->commglbload     = (reduglbtab[3] / 2) * grafptr->domndist + reduglbtab[4];
   grafptr->commglbgainextn = reduglbtab[5];
+  grafptr->bbalglbval      = (double) ((grafptr->compglbload0dlt < 0) ? (- grafptr->compglbload0dlt) : grafptr->compglbload0dlt) / (double) grafptr->compglbload0avg;
 
 #ifdef SCOTCH_DEBUG_BDGRAPH2
   if (bdgraphCheck (grafptr) != 0) {

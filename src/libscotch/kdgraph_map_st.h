@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : kdgraph_map_st.h                        **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                                                        **/
 /**   FUNCTION   : This module contains the data declara-  **/
 /**                tions for the strategy and method       **/

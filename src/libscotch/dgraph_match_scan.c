@@ -1,4 +1,4 @@
-/* Copyright 2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2012,2013 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -39,8 +39,8 @@
 /**                framework for distributed graph         **/
 /**                matching routines.                      **/
 /**                                                        **/
-/**    DATES     : # Version 5.2  : from : 04 dec 2008     **/
-/**                                 to   : 25 dec 2008     **/
+/**    DATES     : # Version 6.0  : from : 04 dec 2008     **/
+/**                                 to   : 10 oct 2013     **/
 /**                                                        **/
 /************************************************************/
 
@@ -48,11 +48,12 @@ void
 DGRAPHMATCHSCANNAME (
 DgraphMatchData * restrict const  mateptr)
 {
+  int                 flagval;
   Gnum                vertlocnnd;
   Gnum                vertlocadj;
   Gnum                edgekptnbr;
   Gnum                queulocnbr;
-  Gnum                matelocnbr;                 /* TRICK: Initial number of local mated vertices, to which are subtracted single multinodes */
+  Gnum                matelocnbr;                 /* TRICK: Initial number of local mated vertices, from which are subtracted single multinodes */
   Gnum                multlocnbr;
   Gnum                probmax;
 
@@ -65,7 +66,7 @@ DgraphMatchData * restrict const  mateptr)
   DgraphCoarsenMulti * restrict const multloctab = mateptr->c.multloctab;
   DGRAPHMATCHSCANINIT
 
-  probmax = (Gnum) (mateptr->probval * 32768.0); /* Compute integer threshold of proba value */
+  flagval = mateptr->c.flagval;                   /* Get flag value */
   vertlocadj = grafptr->procvrttab[grafptr->proclocnum] - grafptr->baseval;
   vertlocnnd = grafptr->vertlocnnd;
   matelocnbr = mateptr->matelocnbr;
@@ -86,6 +87,7 @@ DgraphMatchData * restrict const  mateptr)
       Gnum                edgeendnbr;
       Gnum                edgefrenbr;
       Gnum                probval;
+      DGRAPHMATCHSCANCOUNTDECL
 
       if (mategsttax[vertlocnum] >= 0)            /* If vertex has been matched by one of the previous ones, skip it */
         continue;
@@ -105,7 +107,8 @@ DgraphMatchData * restrict const  mateptr)
 
       edgelocnum = vertloctax[vertlocnum];
       edgelocnnd = vendloctax[vertlocnum];
-      if ((edgelocnnd - edgelocnum) == 0) {       /* If isolated vertex                          */
+      if (((flagval & DGRAPHCOARSENNOMERGE) == 0) && /* If merging isolated vertices is allowed  */
+          ((edgelocnnd - edgelocnum) == 0)) {     /* And if vertex is isolated                   */
         while (mategsttax[-- vertlocnnt] != ~0) ; /* Search for first matchable local "neighbor" */
 
         mategsttax[vertlocnum] = (vertlocnnt + vertlocadj); /* At worst we will stop at vertlocnum */
@@ -198,6 +201,7 @@ DgraphMatchData * restrict const  mateptr)
       Gnum                edgeendnbr;
       Gnum                edgefrenbr;
       Gnum                probval;
+      DGRAPHMATCHSCANCOUNTDECL
 
       vertlocnum = queuloctab[queulocnum];        /* Get current vertex */
       if (mategsttax[vertlocnum] >= 0)            /* If already mated   */

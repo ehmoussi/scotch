@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -44,6 +44,8 @@
 /**                                 to     19 dec 2006     **/
 /**                # Version 5.1  : from : 04 nov 2010     **/
 /**                                 to     04 nov 2010     **/
+/**                # Version 6.0  : from : 17 oct 2012     **/
+/**                                 to     17 oct 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -87,7 +89,8 @@ int                         hgraphInit          (Hgraph * const);
 void                        hgraphExit          (Hgraph * const);
 void                        hgraphFree          (Hgraph * const);
 Gnum                        hgraphBase          (Hgraph * const, const Gnum);
-int                         hgraphInduceList    (const Hgraph * const, const VertList * const, const Gnum, Hgraph * const);
 int                         hgraphCheck         (const Hgraph *);
+int                         hgraphInduceList    (const Hgraph * const, const VertList * const, const Gnum, Hgraph * const);
+void                        hgraphUnhalo        (const Hgraph * const, Graph * const);
 
 #undef static

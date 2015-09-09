@@ -1,4 +1,4 @@
-## Copyright 2004,2007-2010 ENSEIRB, INRIA & CNRS
+## Copyright 2004,2007-2013 IPB, Universite de Bordeaux, INRIA & CNRS
 ##
 ## This file is part of the Scotch software package for static mapping,
 ## graph partitioning and sparse matrix ordering.
@@ -51,7 +51,7 @@ include ../Makefile.inc
 
 .PHONY				:	ptscotch	scotch	ptinstall	install	clean	realclean
 
-scotch				:	clean
+scotch				:
 					$(MAKE) CC="$(CCS)" CCD="$(CCS)"	\
 					scotch.h				\
 					scotchf.h				\
@@ -59,28 +59,50 @@ scotch				:	clean
 					libscotcherr$(LIB)			\
 					libscotcherrexit$(LIB)
 
-ptscotch			:	clean
+ptscotch			:	scotch
 					$(MAKE) CFLAGS="$(CFLAGS) -DSCOTCH_PTSCOTCH" CC="$(CCP)"	\
-					scotch.h							\
-					scotchf.h							\
+					ptscotch.h							\
+					ptscotchf.h							\
 					libptscotch$(LIB)						\
-					libscotch$(LIB)							\
 					libptscotcherr$(LIB)						\
 					libptscotcherrexit$(LIB)
 
-install				:
-					-$(CP) scotch.h scotchf.h $(includedir)
-					-$(CP) libscotch$(LIB) libscotcherr*$(LIB) $(libdir)
+install				:	$(includedir)/scotch.h			\
+					$(includedir)/scotchf.h			\
+					$(libdir)/libscotch$(LIB)
 
-ptinstall			:
-					-$(CP) scotch.h $(includedir)/ptscotch.h
-					-$(CP) scotchf.h $(includedir)/ptscotchf.h
-					-$(CP) libptscotch*$(LIB) $(libdir)
+ptinstall			:	install					\
+					$(includedir)/ptscotch.h		\
+					$(includedir)/ptscotchf.h		\
+					$(libdir)/libptscotch$(LIB)
 
 clean				:
-					-$(RM) *~ *$(OBJ) lib*$(LIB) parser_yy.c parser_ly.h parser_ll.c *scotch.h *scotchf.h y.output dummysizes$(EXE)
+					-$(RM) *~ *$(OBJ) lib*$(LIB) parser_yy.c parser_ly.h parser_ll.c *scotch.h *scotchf.h y.output *dummysizes$(EXE)
 
 realclean			:	clean
+
+
+##
+##  Installation dependencies
+##
+
+$(includedir)/scotch.h		:	scotch.h
+					-$(CP) scotch.h $(includedir)
+
+$(includedir)/scotchf.h		:	scotchf.h
+					-$(CP) scotchf.h $(includedir)
+
+$(includedir)/ptscotch.h	:	ptscotch.h
+					-$(CP) ptscotch.h $(includedir)
+
+$(includedir)/ptscotchf.h	:	ptscotchf.h
+					-$(CP) ptscotchf.h $(includedir)
+
+$(libdir)/libscotch$(LIB)	:	libscotch$(LIB)
+					-$(CP) libscotch$(LIB) libscotcherr*$(LIB) $(libdir)
+
+$(libdir)/libptscotch$(LIB)	:	libptscotch$(LIB)
+					-$(CP) libptscotch$(LIB) libptscotcherr*$(LIB) $(libdir)
 
 ##
 ##  Library dependencies.
@@ -120,6 +142,7 @@ LIBPTSCOTCHDEPS =	bdgraph$(OBJ)				\
 			dgraph_match_sync_coll$(OBJ)		\
 			dgraph_match_sync_ptop$(OBJ)		\
 			dgraph_match_check$(OBJ)		\
+			dgraph_redist$(OBJ)			\
 			dgraph_scatter$(OBJ)			\
 			dgraph_view$(OBJ)			\
 			dmapping$(OBJ)				\
@@ -141,22 +164,30 @@ LIBPTSCOTCHDEPS =	bdgraph$(OBJ)				\
 			hdgraph_order_sq$(OBJ)			\
 			hdgraph_order_st$(OBJ)			\
 			kdgraph$(OBJ)				\
+			kdgraph_gather$(OBJ)			\
 			kdgraph_map_rb$(OBJ)			\
 			kdgraph_map_rb_map$(OBJ)		\
 			kdgraph_map_rb_part$(OBJ)		\
 			kdgraph_map_st$(OBJ)			\
 			library_dgraph$(OBJ)			\
 			library_dgraph_f$(OBJ)			\
+			library_dgraph_band$(OBJ)		\
+			library_dgraph_band_f$(OBJ)		\
 			library_dgraph_build$(OBJ)		\
 			library_dgraph_build_f$(OBJ)		\
 			library_dgraph_build_grid3d$(OBJ)	\
 			library_dgraph_build_grid3d_f$(OBJ)	\
 			library_dgraph_check$(OBJ)		\
 			library_dgraph_check_f$(OBJ)		\
+			library_dgraph_coarsen$(OBJ)		\
+			library_dgraph_coarsen_f$(OBJ)		\
 			library_dgraph_gather$(OBJ)		\
 			library_dgraph_gather_f$(OBJ)		\
+			library_dgraph_grow$(OBJ)		\
 			library_dgraph_halo$(OBJ)		\
 			library_dgraph_halo_f$(OBJ)		\
+			library_dgraph_induce$(OBJ)		\
+			library_dgraph_induce_f$(OBJ)		\
 			library_dgraph_io_load$(OBJ)		\
 			library_dgraph_io_load_f$(OBJ)		\
 			library_dgraph_io_save$(OBJ)		\
@@ -177,6 +208,8 @@ LIBPTSCOTCHDEPS =	bdgraph$(OBJ)				\
 			library_dgraph_order_perm_f$(OBJ)	\
 			library_dgraph_order_tree_dist$(OBJ)	\
 			library_dgraph_order_tree_dist_f$(OBJ)	\
+			library_dgraph_redist$(OBJ)		\
+			library_dgraph_redist_f$(OBJ)		\
 			library_dgraph_scatter$(OBJ)		\
 			library_dgraph_scatter_f$(OBJ)		\
 			library_dgraph_stat$(OBJ)		\
@@ -199,6 +232,7 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			arch_cmplt$(OBJ)			\
 			arch_cmpltw$(OBJ)			\
 			arch_deco$(OBJ)				\
+			arch_dist$(OBJ)				\
 			arch_hcub$(OBJ)				\
 			arch_mesh$(OBJ)				\
 			arch_tleaf$(OBJ)			\
@@ -225,10 +259,13 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			common_memory$(OBJ)			\
 			common_string$(OBJ)			\
 			common_stub$(OBJ)			\
+			common_thread$(OBJ)			\
+			fibo$(OBJ)				\
 			gain$(OBJ)				\
 			geom$(OBJ)				\
 			graph$(OBJ)				\
 			graph_base$(OBJ)			\
+			graph_band$(OBJ)			\
 			graph_check$(OBJ)			\
 			graph_coarsen$(OBJ)			\
 			graph_induce$(OBJ)			\
@@ -238,6 +275,7 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			graph_io_mmkt$(OBJ)			\
 			graph_io_scot$(OBJ)			\
 			graph_list$(OBJ)			\
+			graph_match$(OBJ)			\
 			hall_order_hd$(OBJ)			\
 			hall_order_hf$(OBJ)			\
 			hall_order_hx$(OBJ)			\
@@ -250,6 +288,7 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			hgraph_order_hd$(OBJ)			\
 			hgraph_order_hf$(OBJ)			\
 			hgraph_order_hx$(OBJ)			\
+			hgraph_order_kp$(OBJ)			\
 			hgraph_order_nd$(OBJ)			\
 			hgraph_order_si$(OBJ)			\
 			hgraph_order_st$(OBJ)			\
@@ -269,16 +308,24 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			hmesh_order_si$(OBJ)			\
 			hmesh_order_st$(OBJ)			\
 			kgraph$(OBJ)				\
+			kgraph_band$(OBJ)			\
 			kgraph_check$(OBJ)			\
+			kgraph_map_bd$(OBJ)			\
+			kgraph_map_cp$(OBJ)			\
+			kgraph_map_df$(OBJ)			\
+			kgraph_map_ex$(OBJ)			\
+			kgraph_map_fm$(OBJ)			\
 			kgraph_map_ml$(OBJ)			\
 			kgraph_map_rb$(OBJ)			\
 			kgraph_map_rb_map$(OBJ)			\
 			kgraph_map_rb_part$(OBJ)		\
 			kgraph_map_st$(OBJ)			\
+			kgraph_store$(OBJ)			\
 			library_arch$(OBJ)			\
 			library_arch_f$(OBJ)			\
 			library_arch_build$(OBJ)		\
 			library_arch_build_f$(OBJ)		\
+			library_common_f$(OBJ)			\
 			library_geom$(OBJ)			\
 			library_geom_f$(OBJ)			\
 			library_graph$(OBJ)			\
@@ -287,6 +334,10 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			library_graph_base_f$(OBJ)		\
 			library_graph_check$(OBJ)		\
 			library_graph_check_f$(OBJ)		\
+			library_graph_coarsen$(OBJ)		\
+			library_graph_coarsen_f$(OBJ)		\
+			library_graph_color$(OBJ)		\
+			library_graph_color_f$(OBJ)		\
 			library_graph_io_chac$(OBJ)		\
 			library_graph_io_chac_f$(OBJ)		\
 			library_graph_io_habo$(OBJ)		\
@@ -297,11 +348,17 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			library_graph_io_scot_f$(OBJ)		\
 			library_graph_map$(OBJ)			\
 			library_graph_map_f$(OBJ)		\
+			library_graph_map_io$(OBJ)		\
+			library_graph_map_io_f$(OBJ)		\
 			library_graph_map_view$(OBJ)		\
 			library_graph_map_view_f$(OBJ)		\
 			library_graph_order$(OBJ)		\
 			library_graph_order_f$(OBJ)		\
+			library_graph_part_ovl$(OBJ)		\
+			library_graph_part_ovl_f$(OBJ)		\
 			library_mapping$(OBJ)			\
+			library_memory$(OBJ)			\
+			library_memory_f$(OBJ)			\
 			library_mesh$(OBJ)			\
 			library_mesh_f$(OBJ)			\
 			library_mesh_graph$(OBJ)		\
@@ -339,6 +396,7 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			vgraph$(OBJ)				\
 			vgraph_check$(OBJ)			\
 			vgraph_separate_bd$(OBJ)		\
+			vgraph_separate_df$(OBJ)		\
 			vgraph_separate_es$(OBJ)		\
 			vgraph_separate_fm$(OBJ)		\
 			vgraph_separate_gg$(OBJ)		\
@@ -357,7 +415,17 @@ LIBSCOTCHDEPS	=	arch$(OBJ)				\
 			vmesh_separate_ml$(OBJ)			\
 			vmesh_separate_zr$(OBJ)			\
 			vmesh_separate_st$(OBJ)			\
-			vmesh_store$(OBJ)
+			vmesh_store$(OBJ)			\
+			wgraph$(OBJ)				\
+			wgraph_check$(OBJ)			\
+			wgraph_part_fm$(OBJ)  			\
+			wgraph_part_gg$(OBJ)          		\
+			wgraph_part_gp$(OBJ)	        	\
+			wgraph_part_ml$(OBJ)   			\
+			wgraph_part_rb$(OBJ)  			\
+			wgraph_part_st$(OBJ)  			\
+			wgraph_part_zr$(OBJ)  			\
+			wgraph_store$(OBJ)
 
 ##
 ##  Todo list.
@@ -409,6 +477,11 @@ common_stub$(OBJ)		:	common_stub.c				\
 					common.h
 					$(CC) $(CFLAGS) $(CLIBFLAGS) -c $(<) -DSCOTCH_COMMON_RENAME -o $(@)
 
+common_thread$(OBJ)		:	common_thread.c				\
+					module.h				\
+					common.h
+					$(CC) $(CFLAGS) $(CLIBFLAGS) -c $(<) -DSCOTCH_COMMON_RENAME -o $(@)
+
 arch$(OBJ)			:	arch.c					\
 					module.h				\
 					common.h				\
@@ -416,6 +489,7 @@ arch$(OBJ)			:	arch.c					\
 					arch_cmplt.h				\
 					arch_cmpltw.h				\
 					arch_deco.h				\
+					arch_dist.h				\
 					arch_hcub.h				\
 					arch_mesh.h				\
 					arch_tleaf.h				\
@@ -428,8 +502,10 @@ arch_build$(OBJ)		:	arch_build.c				\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					arch_deco.h				\
+					arch_vcmplt.h				\
+					mapping.h				\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
 					arch_build.h
@@ -451,6 +527,12 @@ arch_deco$(OBJ)			:	arch_deco.c				\
 					common.h				\
 					arch.h					\
 					arch_deco.h
+
+arch_dist$(OBJ)			:	arch_dist.c				\
+					module.h				\
+					common.h				\
+					arch.h					\
+					arch_dist.h
 
 arch_hcub$(OBJ)			:	arch_hcub.c				\
 					module.h				\
@@ -491,7 +573,7 @@ arch_vhcub$(OBJ)		:	arch_vhcub.c				\
 bdgraph$(OBJ)			:	bdgraph.c				\
 					module.h				\
 					common.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					dmapping.h				\
 					bdgraph.h
@@ -500,7 +582,7 @@ bdgraph_bipart_bd$(OBJ)		:	bdgraph_bipart_bd.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					dgraph_halo.h				\
 					bdgraph.h				\
@@ -510,7 +592,7 @@ bdgraph_bipart_bd$(OBJ)		:	bdgraph_bipart_bd.c			\
 bdgraph_bipart_df$(OBJ)		:	bdgraph_bipart_df.c			\
 					module.h				\
 					common.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					bdgraph.h				\
 					bdgraph_bipart_df.h
@@ -518,7 +600,7 @@ bdgraph_bipart_df$(OBJ)		:	bdgraph_bipart_df.c			\
 bdgraph_bipart_ex$(OBJ)		:	bdgraph_bipart_ex.c			\
 					module.h				\
 					common.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					bdgraph.h				\
 					bdgraph_bipart_ex.h
@@ -527,7 +609,7 @@ bdgraph_bipart_ml$(OBJ)		:	bdgraph_bipart_ml.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					dgraph_coarsen.h			\
 					bdgraph.h				\
@@ -539,7 +621,7 @@ bdgraph_bipart_sq$(OBJ)		:	bdgraph_bipart_sq.c			\
 					common.h				\
 					comm.h					\
 					parser.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					graph.h					\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
@@ -553,7 +635,7 @@ bdgraph_bipart_st$(OBJ)		:	bdgraph_bipart_st.c			\
 					gain.h					\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
 					dgraph.h				\
@@ -570,7 +652,7 @@ bdgraph_bipart_st$(OBJ)		:	bdgraph_bipart_st.c			\
 bdgraph_bipart_zr$(OBJ)		:	bdgraph_bipart_zr.c			\
 					module.h				\
 					common.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					bdgraph.h				\
 					bdgraph_bipart_zr.h
@@ -578,7 +660,7 @@ bdgraph_bipart_zr$(OBJ)		:	bdgraph_bipart_zr.c			\
 bdgraph_check$(OBJ)		:	bdgraph_check.c				\
 					module.h				\
 					common.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					bdgraph.h
 
@@ -586,7 +668,7 @@ bdgraph_gather_all$(OBJ)	:	bdgraph_gather_all.c			\
 					module.h				\
 					common.h				\
 					comm.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					graph.h					\
 					bgraph.h				\
 					dgraph.h				\
@@ -595,7 +677,7 @@ bdgraph_gather_all$(OBJ)	:	bdgraph_gather_all.c			\
 bdgraph_store$(OBJ)		:	bdgraph_store.c				\
 					module.h				\
 					common.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					bdgraph.h
 
@@ -603,15 +685,8 @@ bgraph$(OBJ)			:	bgraph.c				\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
-					bgraph.h
-
-bgraph_check$(OBJ)		:	bgraph_check.c				\
-					module.h				\
-					common.h				\
-					graph.h					\
-					arch.h					\
 					bgraph.h
 
 bgraph_bipart_bd$(OBJ)		:	bgraph_bipart_bd.c			\
@@ -619,16 +694,17 @@ bgraph_bipart_bd$(OBJ)		:	bgraph_bipart_bd.c			\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_bd.h			\
 					bgraph_bipart_st.h
 
 bgraph_bipart_df$(OBJ)		:	bgraph_bipart_df.c			\
+					bgraph_bipart_df_loop.c			\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_df.h
 
@@ -637,7 +713,7 @@ bgraph_bipart_ex$(OBJ)		:	bgraph_bipart_ex.c			\
 					common.h				\
 					gain.h					\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_ex.h			\
 					bgraph_bipart_fm.h			\
@@ -645,19 +721,21 @@ bgraph_bipart_ex$(OBJ)		:	bgraph_bipart_ex.c			\
 
 bgraph_bipart_fm$(OBJ)		:	bgraph_bipart_fm.c			\
 					gain.h					\
+					fibo.h					\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_fm.h
 
 bgraph_bipart_gg$(OBJ)		:	bgraph_bipart_gg.c			\
 					gain.h					\
+					fibo.h					\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_gg.h
 
@@ -665,7 +743,7 @@ bgraph_bipart_gp$(OBJ)		:	bgraph_bipart_gp.c			\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_gp.h
 
@@ -675,18 +753,19 @@ bgraph_bipart_ml$(OBJ)		:	bgraph_bipart_ml.c			\
 					parser.h				\
 					graph.h					\
 					graph_coarsen.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_ml.h			\
 					bgraph_bipart_st.h
 
 bgraph_bipart_st$(OBJ)		:	bgraph_bipart_st.c			\
 					gain.h					\
+					fibo.h					\
 					module.h				\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_bd.h			\
 					bgraph_bipart_df.h			\
@@ -702,15 +781,22 @@ bgraph_bipart_zr$(OBJ)		:	bgraph_bipart_zr.c			\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h				\
 					bgraph_bipart_zr.h
+
+bgraph_check$(OBJ)		:	bgraph_check.c				\
+					module.h				\
+					common.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					bgraph.h
 
 bgraph_store$(OBJ)		:	bgraph_store.c				\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					bgraph.h
 
 comm$(OBJ)			:	comm.c					\
@@ -726,7 +812,8 @@ dgraph$(OBJ)			:	dgraph.c				\
 dgraph_allreduce$(OBJ)		:	dgraph_allreduce.c			\
 					module.h				\
 					common.h				\
-					dgraph.h
+					dgraph.h				\
+					dgraph_allreduce.h
 
 dgraph_band$(OBJ)		:	dgraph_band.c				\
 					module.h				\
@@ -858,6 +945,12 @@ dgraph_match_sync_ptop$(OBJ)	:	dgraph_match_sync_ptop.c		\
 					dgraph_match.h				\
 					graph.h
 
+dgraph_redist$(OBJ)		:	dgraph_redist.c				\
+					module.h				\
+					common.h				\
+					graph.h					\
+					dgraph.h
+
 dgraph_scatter$(OBJ)		:	dgraph_scatter.c			\
 					module.h				\
 					common.h				\
@@ -872,7 +965,7 @@ dgraph_view$(OBJ)		:	dgraph_view.c				\
 dmapping$(OBJ)			:	dmapping.c				\
 					module.h				\
 					common.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					dmapping.h
 
@@ -880,7 +973,7 @@ dmapping_io$(OBJ)		:	dmapping_io.c				\
 					module.h				\
 					common.h				\
 					comm.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					dgraph_allreduce.h			\
 					dmapping.h
@@ -895,6 +988,7 @@ dorder_gather$(OBJ)		:	dorder_gather.c				\
 					module.h				\
 					common.h				\
 					dgraph.h				\
+					dgraph_allreduce.h			\
 					dorder.h				\
 					dorder_gather.h				\
 					order.h
@@ -935,6 +1029,11 @@ dorder_tree_dist$(OBJ)		:	dorder_tree_dist.c			\
 					dgraph.h				\
 					dorder.h
 
+fibo$(OBJ)			:	fibo.c					\
+					module.h				\
+					common.h				\
+					fibo.h                                  
+
 gain$(OBJ)			:	gain.c					\
 					module.h				\
 					common.h				\
@@ -946,6 +1045,11 @@ geom$(OBJ)			:	geom.c					\
 					geom.h
 
 graph$(OBJ)			:	graph.c					\
+					module.h				\
+					common.h				\
+					graph.h
+
+graph_band$(OBJ)		:	graph_band.c				\
 					module.h				\
 					common.h				\
 					graph.h
@@ -964,7 +1068,8 @@ graph_coarsen$(OBJ)		:	graph_coarsen.c				\
 					graph_coarsen_edge.c			\
 					module.h				\
 					common.h				\
-					graph.h
+					graph.h					\
+					graph_coarsen.h
 
 graph_induce$(OBJ)		:	graph_induce.c				\
 					module.h				\
@@ -995,7 +1100,8 @@ graph_io_mmkt$(OBJ)		:	graph_io_mmkt.c				\
 					module.h				\
 					common.h				\
 					geom.h					\
-					graph.h
+					graph.h					\
+					graph_io_mmkt.h
 
 graph_io_scot$(OBJ)		:	graph_io_scot.c				\
 					module.h				\
@@ -1008,6 +1114,14 @@ graph_list$(OBJ)		:	graph_list.c				\
 					module.h				\
 					common.h				\
 					graph.h
+
+graph_match$(OBJ)		:	graph_match.c				\
+					graph_match_scan.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					graph_coarsen.h				\
+					graph_match.h
 
 hall_order_hd$(OBJ)		:	hall_order_hd.c				\
 					module.h				\
@@ -1106,19 +1220,16 @@ hdgraph_order_st$(OBJ)		:	hdgraph_order_st.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
-					graph.h					\
-					order.h					\
-					hgraph.h				\
-					hgraph_order_st.h			\
 					dgraph.h				\
+					dgraph_coarsen.h			\
 					dorder.h				\
 					hdgraph.h				\
+					vdgraph.h				\
+					vdgraph_separate_st.h			\
 					hdgraph_order_nd.h			\
 					hdgraph_order_si.h			\
 					hdgraph_order_sq.h			\
-					hdgraph_order_st.h			\
-					vdgraph.h				\
-					vdgraph_separate_st.h
+					hdgraph_order_st.h
 
 hgraph$(OBJ)			:	hgraph.c				\
 					module.h				\
@@ -1198,6 +1309,22 @@ hgraph_order_hx$(OBJ)		:	hgraph_order_hx.c			\
 					hgraph.h				\
 					hgraph_order_hx.h
 
+hgraph_order_kp$(OBJ)		:	hgraph_order_kp.c			\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					arch.h					\
+					mapping.h				\
+					order.h					\
+					hgraph.h				\
+					hgraph_order_kp.h			\
+					hgraph_order_si.h			\
+					hgraph_order_st.h			\
+					kgraph.h				\
+					kgraph_map_st.h				\
+					scotch.h
+
 hgraph_order_nd$(OBJ)		:	hgraph_order_nd.c			\
 					module.h				\
 					common.h				\
@@ -1223,19 +1350,23 @@ hgraph_order_st$(OBJ)		:	hgraph_order_st.c			\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					graph_coarsen.h				\
+					arch$(OBJ)				\
+					mapping.h				\
 					order.h					\
 					hgraph.h				\
-					vgraph.h				\
-					vgraph_separate_st.h			\
 					hgraph_order_bl.h			\
 					hgraph_order_cp.h			\
 					hgraph_order_gp.h			\
 					hgraph_order_hd.h			\
 					hgraph_order_hf.h			\
+					hgraph_order_kp.h			\
 					hgraph_order_nd.h			\
 					hgraph_order_si.h			\
-					hgraph_order_st.h
+					hgraph_order_st.h			\
+					kgraph.h				\
+					kgraph_map_st.h				\
+					vgraph.h				\
+					vgraph_separate_st.h
 
 hmesh$(OBJ)			:	hmesh.c					\
 					module.h				\
@@ -1305,17 +1436,14 @@ hmesh_order_gp$(OBJ)		:	hmesh_order_gp.c			\
 					hmesh.h					\
 					hmesh_order_gp.h
 
-hmesh_order_gr$(OBJ)		:	hmesh_order_gr.c			\
+hmesh_order_gp$(OBJ)		:	hmesh_order_gp.c			\
 					module.h				\
 					common.h				\
-					parser.h				\
 					graph.h					\
-					hgraph.h				\
-					hgraph_order_st.h			\
 					order.h					\
 					mesh.h					\
 					hmesh.h					\
-					hmesh_order_gr.h
+					hmesh_order_gp.h
 
 hmesh_order_hd$(OBJ)		:	hmesh_order_hd.c			\
 					module.h				\
@@ -1394,16 +1522,26 @@ hmesh_order_st$(OBJ)		:	hmesh_order_st.c			\
 kdgraph$(OBJ)			:	kdgraph.c				\
 					module.h				\
 					common.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					dmapping.h				\
+					kdgraph.h
+
+kdgraph_gather$(OBJ)		:	kdgraph_gather.c			\
+					module.h				\
+					common.h				\
+					arch$(OBJ)				\
+					graph.h					\
+					mapping.h				\
+					kgraph.h				\
+					dgraph.h				\
 					kdgraph.h
 
 kdgraph_map_rb$(OBJ)		:	kdgraph_map_rb.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					graph.h					\
 					dgraph.h				\
 					dmapping.h				\
@@ -1416,7 +1554,7 @@ kdgraph_map_rb_map$(OBJ)	:	kdgraph_map_rb_map.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					graph.h					\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
@@ -1436,7 +1574,7 @@ kdgraph_map_rb_part$(OBJ)	:	kdgraph_map_rb_part.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					graph.h					\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
@@ -1456,7 +1594,7 @@ kdgraph_map_st$(OBJ)		:	kdgraph_map_st.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					graph.h					\
 					dgraph.h				\
 					dgraph_coarsen.h			\
@@ -1474,7 +1612,15 @@ kgraph$(OBJ)			:	kgraph.c				\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
+					mapping.h				\
+					kgraph.h
+
+kgraph_band$(OBJ)		:	kgraph_band.c		   		\
+					module.h				\
+					common.h				\
+					arch$(OBJ)				\
+					graph.h			        	\
 					mapping.h				\
 					kgraph.h
 
@@ -1482,27 +1628,78 @@ kgraph_check$(OBJ)		:	kgraph_check.c				\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					kgraph.h
+
+kgraph_map_bd$(OBJ)		:	kgraph_map_bd.c				\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					mapping.h				\
+					kgraph.h				\
+					kgraph_map_bd.h
+
+kgraph_map_cp$(OBJ)		:	kgraph_map_cp.c				\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					mapping.h				\
+					kgraph.h				\
+					kgraph_map_cp.h
+
+kgraph_map_df$(OBJ)		:	kgraph_map_df.c				\
+					kgraph_map_df_loop.c			\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					mapping.h				\
+					kgraph.h				\
+					kgraph_map_df.h
+
+kgraph_map_ex$(OBJ)		:	kgraph_map_ex.c				\
+					module.h				\
+					common.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					mapping.h				\
+					kgraph.h				\
+					kgraph_map_ex.h
+
+kgraph_map_fm$(OBJ)		:	kgraph_map_fm.c				\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					mapping.h				\
+					kgraph.h				\
+					kgraph_map_fm.h                         \
+					kgraph_map_rb.h
 
 kgraph_map_ml$(OBJ)		:	kgraph_map_ml.c				\
 					module.h				\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					graph_coarsen.h				\
+					arch$(OBJ)				\
 					mapping.h				\
 					kgraph.h				\
-					kgraph_map_ml.h				\
-					kgraph_map_st.h
+					kgraph_map_ml.h
 
 kgraph_map_rb$(OBJ)		:	kgraph_map_rb.c				\
 					module.h				\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
@@ -1516,7 +1713,7 @@ kgraph_map_rb_map$(OBJ)		:	kgraph_map_rb_map.c			\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
@@ -1529,7 +1726,7 @@ kgraph_map_rb_part$(OBJ)	:	kgraph_map_rb_part.c			\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
@@ -1542,20 +1739,31 @@ kgraph_map_st$(OBJ)		:	kgraph_map_st.c				\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
 					kgraph.h				\
+					kgraph_map_bd.h				\
+					kgraph_map_cp.h				\
+					kgraph_map_df.h				\
+					kgraph_map_fm.h				\
 					kgraph_map_ml.h				\
-					kgraph_map_rb.h				\
-					kgraph_map_st.h
+					kgraph_map_rb.h
+
+kgraph_store$(OBJ)		:	kgraph_store.c				\
+					module.h				\
+					common.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					mapping.h				\
+					kgraph.h
 
 library_arch$(OBJ)		:	library_arch.c				\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					arch_cmplt.h				\
 					scotch.h
 
@@ -1569,7 +1777,7 @@ library_arch_build$(OBJ)	:	library_arch_build.c			\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					arch_build.h				\
 					mapping.h				\
 					bgraph.h				\
@@ -1581,112 +1789,157 @@ library_arch_build_f$(OBJ)	:	library_arch_build_f.c			\
 					common.h				\
 					scotch.h
 
+library_common_f$(OBJ)		:	library_common_f.c			\
+					module.h				\
+					common.h				\
+					scotch.h
+
 library_dgraph$(OBJ)		:	library_dgraph.c			\
 					module.h				\
 					common.h				\
 					graph.h					\
 					dgraph.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_f$(OBJ)		:	library_dgraph_f.c			\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
+
+library_dgraph_band$(OBJ)	:	library_dgraph_band.c			\
+					module.h				\
+					common.h				\
+					dgraph.h				\
+					ptscotch.h
+
+library_dgraph_band_f$(OBJ)	:	library_dgraph_band_f.c			\
+					module.h				\
+					common.h				\
+					ptscotch.h
 
 library_dgraph_build$(OBJ)	:	library_dgraph_build.c			\
 					module.h				\
 					common.h				\
 					dgraph.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_build_f$(OBJ)	:	library_dgraph_build_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_build_grid3d$(OBJ):	library_dgraph_build_grid3d.c		\
 					module.h				\
 					common.h				\
 					dgraph.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_build_grid3d_f$(OBJ):	library_dgraph_build_grid3d_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_check$(OBJ)	:	library_dgraph_check.c			\
 					module.h				\
 					common.h				\
 					dgraph.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_check_f$(OBJ)	:	library_dgraph_check_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
+
+library_dgraph_coarsen$(OBJ)	:	library_dgraph_coarsen.c		\
+					module.h				\
+					common.h				\
+					dgraph.h				\
+					dgraph_coarsen.h			\
+					ptscotch.h
+
+library_dgraph_coarsen_f$(OBJ)	:	library_dgraph_coarsen_f.c		\
+					module.h				\
+					common.h				\
+					ptscotch.h
 
 library_dgraph_gather$(OBJ)	:	library_dgraph_gather.c			\
 					module.h				\
 					common.h				\
 					dgraph.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_gather_f$(OBJ)	:	library_dgraph_gather_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
+
+library_dgraph_grow$(OBJ)	:	library_dgraph_grow.c			\
+					module.h				\
+					common.h				\
+					dgraph.h				\
+					ptscotch.h
 
 library_dgraph_halo$(OBJ)	:	library_dgraph_halo.c			\
 					module.h				\
 					common.h				\
 					dgraph.h				\
 					dgraph_halo.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_halo_f$(OBJ)	:	library_dgraph_halo_f.c			\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
+
+library_dgraph_induce$(OBJ)	:	library_dgraph_induce.c			\
+					module.h				\
+					common.h				\
+					dgraph.h				\
+					ptscotch.h
+
+library_dgraph_induce_f$(OBJ)	:	library_dgraph_induce_f.c		\
+					module.h				\
+					common.h				\
+					ptscotch.h
 
 library_dgraph_io_load$(OBJ)	:	library_dgraph_io_load.c		\
 					module.h				\
 					common.h				\
 					dgraph.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_io_load_f$(OBJ)	:	library_dgraph_io_load_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_io_save$(OBJ)	:	library_dgraph_io_save.c		\
 					module.h				\
 					common.h				\
 					dgraph.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_io_save_f$(OBJ)	:	library_dgraph_io_save_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_map$(OBJ)	:	library_dgraph_map.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dgraph.h				\
 					dmapping.h				\
 					kdgraph.h				\
 					kdgraph_map_st.h			\
 					library_dmapping.h			\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_map_f$(OBJ)	:	library_dgraph_map_f.c			\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_map_view$(OBJ)	:	library_dgraph_map_view.c		\
 					module.h				\
@@ -1694,16 +1947,16 @@ library_dgraph_map_view$(OBJ)	:	library_dgraph_map_view.c		\
 					parser.h				\
 					dgraph.h				\
 					dgraph_halo.h				\
-					arch.h					\
+					arch$(OBJ)				\
 					dmapping.h				\
 					kdgraph.h				\
 					library_dmapping.h			\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_map_view_f$(OBJ)	:	library_dgraph_map_view_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order$(OBJ)	:	library_dgraph_order.c			\
 					module.h				\
@@ -1713,12 +1966,12 @@ library_dgraph_order$(OBJ)	:	library_dgraph_order.c			\
 					dorder.h				\
 					hdgraph.h				\
 					hdgraph_order_st.h			\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_f$(OBJ)	:	library_dgraph_order_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_gather$(OBJ):	library_dgraph_order_gather.c		\
 					module.h				\
@@ -1727,96 +1980,104 @@ library_dgraph_order_gather$(OBJ):	library_dgraph_order_gather.c		\
 					order.h					\
 					dorder.h				\
 					library_order.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_gather_f$(OBJ):	library_dgraph_order_gather_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_io$(OBJ)	:	library_dgraph_order_io.c		\
 					module.h				\
 					common.h				\
-					graph.h					\
 					dgraph.h				\
-					order.h					\
 					dorder.h				\
-					library_order.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_io_f$(OBJ)	:	library_dgraph_order_io_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_io_block$(OBJ):	library_dgraph_order_io_block.c		\
 					module.h				\
 					common.h				\
 					dgraph.h				\
 					dorder.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_io_block_f$(OBJ):	library_dgraph_order_io_block_f.c	\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_perm$(OBJ)	:	library_dgraph_order_perm.c		\
 					module.h				\
 					common.h				\
 					dgraph.h				\
 					dorder.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_perm_f$(OBJ):	library_dgraph_order_perm_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_tree_dist$(OBJ):	library_dgraph_order_tree_dist.c	\
 					module.h				\
 					common.h				\
 					dgraph.h				\
 					dorder.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_order_tree_dist_f$(OBJ):	library_dgraph_order_tree_dist_f.c	\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
+
+library_dgraph_redist$(OBJ)	:	library_dgraph_redist.c			\
+					module.h				\
+					common.h				\
+					dgraph.h				\
+					ptscotch.h
+
+library_dgraph_redist_f$(OBJ)	:	library_dgraph_redist_f.c		\
+					module.h				\
+					common.h				\
+					ptscotch.h
 
 library_dgraph_scatter$(OBJ)	:	library_dgraph_scatter.c		\
 					module.h				\
 					common.h				\
 					dgraph.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_scatter_f$(OBJ)	:	library_dgraph_scatter_f.c		\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dgraph_stat$(OBJ)	:	library_dgraph_stat.c			\
 					module.h				\
 					common.h				\
 					dgraph.h				\
-					scotch.h				\
+					ptscotch.h				\
 					library_dgraph_stat.h
 
 library_dgraph_stat_f$(OBJ)	:	library_dgraph_stat_f.c			\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dmapping$(OBJ)		:	library_dmapping.c			\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_dorder$(OBJ)		:	library_dorder.c			\
 					module.h				\
 					common.h				\
-					scotch.h
+					ptscotch.h
 
 library_error$(OBJ)		:	library_error.c				\
 					module.h				\
@@ -1827,6 +2088,18 @@ library_error_exit$(OBJ)	:	library_error_exit.c			\
 					module.h				\
 					common.h				\
 					scotch.h
+
+library_error_pt$(OBJ)		:	library_error.c				\
+					module.h				\
+					common.h				\
+					scotch.h
+					$(CC) $(CFLAGS) $(CLIBFLAGS) -c $(<) -o $(@)
+
+library_error_exit_pt$(OBJ)	:	library_error_exit.c			\
+					module.h				\
+					common.h				\
+					scotch.h
+					$(CC) $(CFLAGS) $(CLIBFLAGS) -c $(<) -o $(@)
 
 library_geom$(OBJ)		:	library_geom.c				\
 					module.h				\
@@ -1870,6 +2143,29 @@ library_graph_check$(OBJ)	:	library_graph_check.c			\
 					scotch.h
 
 library_graph_check_f$(OBJ)	:	library_graph_check_f.c			\
+					module.h				\
+					common.h				\
+					scotch.h
+
+library_graph_coarsen$(OBJ)	:	library_graph_coarsen.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					graph_coarsen.h				\
+					scotch.h
+
+library_graph_coarsen_f$(OBJ)	:	library_graph_coarsen_f.c		\
+					module.h				\
+					common.h				\
+					scotch.h
+
+library_graph_color$(OBJ)	:	library_graph_color.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					scotch.h
+
+library_graph_color_f$(OBJ)	:	library_graph_color_f.c			\
 					module.h				\
 					common.h				\
 					scotch.h
@@ -1927,13 +2223,28 @@ library_graph_map$(OBJ)		:	library_graph_map.c			\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					kgraph.h				\
 					kgraph_map_st.h				\
+					library_mapping.h			\
 					scotch.h
 
 library_graph_map_f$(OBJ)	:	library_graph_map_f.c			\
+					module.h				\
+					common.h				\
+					scotch.h
+
+library_graph_map_io$(OBJ)	:	library_graph_map_io.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					library_mapping.h			\
+					library_graph_map_io.h			\
+					scotch.h
+
+library_graph_map_io_f$(OBJ)	:	library_graph_map_io_f.c		\
 					module.h				\
 					common.h				\
 					scotch.h
@@ -1943,7 +2254,7 @@ library_graph_map_view$(OBJ)	:	library_graph_map_view.c		\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					kgraph.h				\
 					library_mapping.h			\
@@ -1971,7 +2282,31 @@ library_graph_order_f$(OBJ)	:	library_graph_order_f.c			\
 					common.h				\
 					scotch.h
 
+library_graph_part_ovl$(OBJ)	:	library_graph_part_ovl.c		\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					wgraph.h				\
+					wgraph_part_st.h			\
+					scotch.h
+
+library_graph_part_ovl_f$(OBJ)	:	library_graph_part_ovl_f.c		\
+					module.h				\
+					common.h				\
+					scotch.h
+
 library_mapping$(OBJ)		:	library_mapping.c			\
+					module.h				\
+					common.h				\
+					scotch.h
+
+library_memory$(OBJ)		:	library_memory.c			\
+					module.h				\
+					common.h				\
+					scotch.h
+
+library_memory_f$(OBJ)		:	library_memory_f.c			\
 					module.h				\
 					common.h				\
 					scotch.h
@@ -2088,14 +2423,14 @@ mapping$(OBJ)			:	mapping.c				\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h
 
 mapping_io$(OBJ)		:	mapping_io.c				\
 					module.h				\
 					common.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					mapping_io.h
 
@@ -2166,6 +2501,12 @@ order_check$(OBJ)		:	order_check.c				\
 					order.h
 
 order_io$(OBJ)			:	order_io.c				\
+					module.h				\
+					common.h				\
+					graph.h					\
+					order.h
+
+order_tree$(OBJ)		:	order_tree.c				\
 					module.h				\
 					common.h				\
 					graph.h					\
@@ -2314,12 +2655,19 @@ vgraph_separate_bd$(OBJ)	:	vgraph_separate_bd.c			\
 					vgraph_separate_bd.h			\
 					vgraph_separate_st.h
 
+vgraph_separate_df$(OBJ)	:	vgraph_separate_df.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					vgraph.h				\
+					vgraph_separate_df.h
+
 vgraph_separate_es$(OBJ)	:	vgraph_separate_es.c			\
 					module.h				\
 					common.h				\
 					parser.h				\
 					graph.h					\
-					arch.h					\
+					arch$(OBJ)				\
 					mapping.h				\
 					bgraph.h				\
 					bgraph_bipart_st.h			\
@@ -2359,37 +2707,6 @@ vgraph_separate_ml$(OBJ)	:	vgraph_separate_ml.c			\
 					vgraph_separate_ml.h			\
 					vgraph_separate_st.h
 
-vgraph_separate_mt$(OBJ)	:	vgraph_separate_mt.c			\
-					module.h				\
-					common.h				\
-					graph.h					\
-					vgraph.h				\
-					vgraph_separate_mt.h
-
-vgraph_separate_st$(OBJ)	:	vgraph_separate_st.c			\
-					gain.h					\
-					module.h				\
-					common.h				\
-					gain.h					\
-					parser.h				\
-					graph.h					\
-					graph_coarsen.h				\
-					arch.h					\
-					mapping.h				\
-					bgraph.h				\
-					bgraph_bipart_st.h			\
-					vgraph.h				\
-					vgraph_separate_bd.h			\
-					vgraph_separate_es.h			\
-					vgraph_separate_fm.h			\
-					vgraph_separate_gg.h			\
-					vgraph_separate_gp.h			\
-					vgraph_separate_ml.h			\
-					vgraph_separate_st.h			\
-					vgraph_separate_th.h			\
-					vgraph_separate_vw.h			\
-					vgraph_separate_zr.h
-
 vgraph_separate_th$(OBJ)	:	vgraph_separate_th.c			\
 					module.h				\
 					common.h				\
@@ -2410,6 +2727,28 @@ vgraph_separate_zr$(OBJ)	:	vgraph_separate_zr.c			\
 					graph.h					\
 					vgraph.h				\
 					vgraph_separate_zr.h
+
+vgraph_separate_st$(OBJ)	:	vgraph_separate_st.c			\
+					gain.h					\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					arch$(OBJ)				\
+					mapping.h				\
+					bgraph.h				\
+					bgraph_bipart_st.h			\
+					vgraph.h				\
+					vgraph_separate_bd.h			\
+					vgraph_separate_df.h			\
+					vgraph_separate_fm.h			\
+					vgraph_separate_gg.h			\
+					vgraph_separate_gp.h			\
+					vgraph_separate_ml.h			\
+					vgraph_separate_th.h			\
+					vgraph_separate_vw.h			\
+					vgraph_separate_zr.h			\
+					vgraph_separate_st.h
 
 vgraph_store$(OBJ)		:	vgraph_store.c				\
 					module.h				\
@@ -2500,21 +2839,111 @@ vmesh_store$(OBJ)		:	vmesh_store.c				\
 					mesh.h					\
 					vmesh.h
 
+wgraph$(OBJ)			:	wgraph.c				\
+					module.h				\
+					common.h				\
+					graph.h					\
+					wgraph.h
+
+wgraph_check$(OBJ)		:	wgraph_check.c				\
+					module.h				\
+					common.h				\
+					graph.h					\
+					wgraph.h
+
+wgraph_part_fm$(OBJ)		:	wgraph_part_fm.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					wgraph.h				\
+					wgraph_part_fm.h
+
+wgraph_part_gg$(OBJ)		:	wgraph_part_gg.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					wgraph.h				\
+					wgraph_part_gg.h
+
+wgraph_part_gp$(OBJ)		:	wgraph_part_gp.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					wgraph.h				\
+					wgraph_part_gp.h
+
+wgraph_part_ml$(OBJ)		: 	wgraph_part_ml.c			\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					graph_coarsen.h				\
+					wgraph.h				\
+					wgraph_part_ml.h			\
+					wgraph_part_st.h
+
+wgraph_part_rb$(OBJ)		:	wgraph_part_rb.c			\
+					module.h				\
+					common.h                                \
+					parser.h                                \
+					graph.h                                 \
+					arch.h                                  \
+					mapping.h                               \
+					vgraph.h                                \
+					vgraph_separate_st.h                    \
+					vgraph_separate_zr.h                    \
+					wgraph.h                                \
+					wgraph_part_rb.h			\
+					scotch.h
+
+wgraph_part_st$(OBJ)		:	wgraph_part_st.c			\
+					gain.h					\
+					module.h				\
+					common.h				\
+					parser.h				\
+					graph.h					\
+					graph_coarsen.h				\
+					vgraph.h				\
+					vgraph_separate_st.h			\
+					wgraph.h				\
+					wgraph_part_fm.h			\
+					wgraph_part_gg.h			\
+					wgraph_part_gp.h			\
+					wgraph_part_ml.h			\
+					wgraph_part_rb.h			\
+					wgraph_part_zr.h			\
+					wgraph_part_st.h
+
+wgraph_part_zr$(OBJ)		: 	wgraph_part_zr.c			\
+					module.h				\
+					common.h				\
+					graph.h					\
+					wgraph.h				\
+					wgraph_part_zr.h
+
+wgraph_store$(OBJ)		:	wgraph_store.c				\
+					module.h				\
+					common.h				\
+					graph.h					\
+					wgraph.h
+
 dummysizes$(EXE)		:	dummysizes.c				\
 					module.h				\
 					common.h				\
-					arch.h					\
-					dgraph.h				\
-					dgraph_halo.h				\
-					dorder.h				\
-					geom.h					\
+					arch$(OBJ)				\
 					graph.h					\
-					library_mapping.h			\
-					library_order.h				\
+					geom.h					\
 					mesh.h					\
 					mapping.h				\
 					order.h					\
 					parser.h
+			 		$(CCD) $(CFLAGS) -DSCOTCH_VERSION=$(VERSION) -DSCOTCH_RELEASE=$(RELEASE) -DSCOTCH_PATCHLEVEL=$(PATCHLEVEL) $(<) -o $(@) $(LDFLAGS)
+
+ptdummysizes$(EXE)		:	dummysizes.c				\
+					module.h				\
+					common.h				\
+					dgraph.h				\
+					dorder.h
 			 		$(CCD) $(CFLAGS) -DSCOTCH_VERSION=$(VERSION) -DSCOTCH_RELEASE=$(RELEASE) -DSCOTCH_PATCHLEVEL=$(PATCHLEVEL) $(<) -o $(@) $(LDFLAGS)
 
 scotch.h			:	dummysizes$(EXE)			\
@@ -2522,22 +2951,18 @@ scotch.h			:	dummysizes$(EXE)			\
 					./dummysizes$(EXE) library.h scotch.h
 
 scotchf.h			:	dummysizes$(EXE) 			\
-					libraryf.h
-					./dummysizes$(EXE) libraryf.h scotchf.h
+					library_f.h
+					./dummysizes$(EXE) library_f.h scotchf.h
 
-libptscotch$(LIB)		:	$(LIBPTSCOTCHDEPS) $(LIBSCOTCHDEPS)
-					$(AR) $(ARFLAGS) $(@) $(?)
-					-$(RANLIB) $(@)
+ptscotch.h			:	ptdummysizes$(EXE)			\
+					library_pt.h
+					./ptdummysizes$(EXE) library_pt.h ptscotch.h
+
+ptscotchf.h			:	ptdummysizes$(EXE)			\
+					library_pt_f.h
+					./ptdummysizes$(EXE) library_pt_f.h ptscotchf.h
 
 libscotch$(LIB)			:	$(LIBSCOTCHDEPS)
-					$(AR) $(ARFLAGS) $(@) $(?)
-					-$(RANLIB) $(@)
-
-libptscotcherr$(LIB)		:	library_error$(OBJ)
-					$(AR) $(ARFLAGS) $(@) $(?)
-					-$(RANLIB) $(@)
-
-libptscotcherrexit$(LIB)	:	library_error_exit$(OBJ)
 					$(AR) $(ARFLAGS) $(@) $(?)
 					-$(RANLIB) $(@)
 
@@ -2546,5 +2971,17 @@ libscotcherr$(LIB)		:	library_error$(OBJ)
 					-$(RANLIB) $(@)
 
 libscotcherrexit$(LIB)		:	library_error_exit$(OBJ)
+					$(AR) $(ARFLAGS) $(@) $(?)
+					-$(RANLIB) $(@)
+
+libptscotch$(LIB)		:	$(LIBPTSCOTCHDEPS)
+					$(AR) $(ARFLAGS) $(@) $(?)
+					-$(RANLIB) $(@)
+
+libptscotcherr$(LIB)		:	library_error_pt$(OBJ)
+					$(AR) $(ARFLAGS) $(@) $(?)
+					-$(RANLIB) $(@)
+
+libptscotcherrexit$(LIB)	:	library_error_exit_pt$(OBJ)
 					$(AR) $(ARFLAGS) $(@) $(?)
 					-$(RANLIB) $(@)

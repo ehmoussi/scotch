@@ -1,4 +1,4 @@
-/* Copyright 2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2008,2011,2013,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : bdgraph_check.c                         **/
 /**                                                        **/
-/**   AUTHORS    : Jun-Ho HER                              **/
+/**   AUTHORS    : Jun-Ho HER (v6.0)                       **/
 /**                Francois PELLEGRINI                     **/
 /**                                                        **/
 /**   FUNCTION   : This module contains the distributed    **/
@@ -42,6 +42,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 10 sep 2007     **/
 /**                                 to     22 jul 2008     **/
+/**                # Version 6.0  : from : 03 sep 2011     **/
+/**                                 to     31 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -84,9 +86,15 @@ const Bdgraph * restrict const grafptr)
   }
 
   cheklocval = 0;                                 /* Assume everything is all right */
+  if ((grafptr->compglbload0min < 0) ||
+      (grafptr->compglbload0max > grafptr->s.veloglbsum)) {
+    errorPrint ("bdgraphCheck: invalid extrema loads");
+    cheklocval = 1;
+  }
+
   if (grafptr->compglbload0 != (grafptr->compglbload0avg + grafptr->compglbload0dlt)) {
     errorPrint ("bdgraphCheck: invalid global balance");
-    cheklocval = 1;
+    cheklocval |= 2;
   }
 
   if ((grafptr->fronlocnbr < 0) ||
@@ -97,7 +105,7 @@ const Bdgraph * restrict const grafptr)
 
   if (grafptr->partgsttax != NULL) {
     for (vertlocnum = grafptr->s.baseval; vertlocnum < grafptr->s.vertlocnnd; vertlocnum ++) {
-      if (grafptr->partgsttax[vertlocnum] > 1) {
+      if ((grafptr->partgsttax[vertlocnum] | 1) != 1) { /* If part is neither 0 nor 1 */
         errorPrint ("bdgraphCheck: invalid local part array");
         cheklocval |= 8;
         break;
@@ -144,11 +152,11 @@ const Bdgraph * restrict const grafptr)
   reduloctab[2]   =   grafptr->compglbload0;
   reduloctab[3]   = - grafptr->compglbload0;
   reduloctab[4]   =   grafptr->s.veloglbsum - grafptr->compglbload0;
-  reduloctab[5]   = - (grafptr->s.veloglbsum - grafptr->compglbload0);
+  reduloctab[5]   = - grafptr->s.veloglbsum + grafptr->compglbload0;
   reduloctab[6]   =   grafptr->compglbsize0;
   reduloctab[7]   = - grafptr->compglbsize0;
   reduloctab[8]   =   grafptr->s.vertglbnbr - grafptr->compglbsize0;
-  reduloctab[9]   = - (grafptr->s.vertglbnbr - grafptr->compglbsize0);
+  reduloctab[9]   = - grafptr->s.vertglbnbr + grafptr->compglbsize0;
   reduloctab[10]  =   grafptr->commglbgainextn;
   reduloctab[11]  = - grafptr->commglbgainextn;
   reduloctab[12]  =   grafptr->commglbgainextn0;
@@ -169,7 +177,7 @@ const Bdgraph * restrict const grafptr)
   if (reduglbtab[20] != 0) {                      /* Exit and Return information of previous errors */
     if (partgsttax != NULL)
       memFree (partgsttax);                       /* Free yet unbased group leader */
-    return (reduglbtab[20]);
+    return ((int) reduglbtab[20]);
   }
 
   if ((reduglbtab[1]  != - reduglbtab[0])  ||
@@ -197,15 +205,15 @@ const Bdgraph * restrict const grafptr)
   for (fronlocnum = 0; fronlocnum < grafptr->fronlocnbr; fronlocnum ++) {
     Gnum                vertlocnum;
     Gnum                edgelocnum;
-    Gnum                commcut;
-    int                 partval;
+    GraphPart           commcut;
+    GraphPart           partval;
 
     vertlocnum = grafptr->fronloctab[fronlocnum];
     partval    = partgsttax[vertlocnum];
 
     for (edgelocnum = grafptr->s.vertloctax[vertlocnum], commcut = 0;
          edgelocnum < grafptr->s.vendloctax[vertlocnum]; edgelocnum ++) {
-      int                 partdlt;
+      GraphPart           partdlt;
 
       partdlt  = partgsttax[grafdat.edgegsttax[edgelocnum]] ^ partval;
       commcut |= partdlt;
@@ -300,7 +308,7 @@ const Bdgraph * restrict const grafptr)
     cheklocval |= 16;
   }
 
-  if (grafptr->commglbload != ((reduglbtab[2] / 2) * grafptr->domdist + reduglbtab[3] + grafptr->commglbloadextn0)) {
+  if (grafptr->commglbload != ((reduglbtab[2] / 2) * grafptr->domndist + reduglbtab[3] + grafptr->commglbloadextn0)) {
     errorPrint ("bdgraphCheck: invalid global communication loads");
     cheklocval |= 32;
   }

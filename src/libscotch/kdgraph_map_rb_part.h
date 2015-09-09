@@ -1,4 +1,4 @@
-/* Copyright 2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2010,2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -40,7 +40,7 @@
 /**                Bipartitioning mapping algorithm.       **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 23 jun 2008     **/
-/**                                 to     04 nov 2010     **/
+/**                                 to     31 aug 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -62,18 +62,28 @@ typedef struct KdgraphMapRbPartGraph_ {
 
 /*+ This structure holds the data passed to the subgraph building threads. +*/
 
-typedef struct KdgraphMapRbPartData_ {
+typedef struct KdgraphMapRbPartThread_ {
   Dmapping *                mappptr;              /*+ Pointer to mapping structure                   +*/
   Dgraph *                  orggrafptr;           /*+ Pointer to original graph                      +*/
   const ArchDom *           inddomnptr;           /*+ Pointer to subjob domain                       +*/
   Gnum                      indvertnbr;           /*+ Local number of vertices in subgraph           +*/
-  int                       indpartval;           /*+ Graph part from which to extract subgraph      +*/
+  GraphPart                 indpartval;           /*+ Graph part from which to extract subgraph      +*/
   GraphPart *               indparttax;           /*+ Based local vertex partition flags in subgraph +*/
   KdgraphMapRbPartGraph *   fldgrafptr;           /*+ Pointer to folded graph union area             +*/
   int                       fldpartval;           /*+ Part of processor array to which to fold to    +*/
   int                       fldprocnbr;           /*+ Number of processes in folded communicator     +*/
   int                       fldprocnum;           /*+ Rank of process in folded communicator, or -1  +*/
   MPI_Comm                  fldproccomm;          /*+ Communicator for the folded graph, if any      +*/
+} KdgraphMapRbPartThread;
+
+/*+ This structure holds the data passed to each bipartitioning job. +*/
+
+typedef struct KdgraphMapRbPartData_ {
+  Dmapping *                mappptr;
+  const KdgraphMapRbParam * paraptr;
+  double                    comploadrat;          /*+ Ideal vertex load per target load   +*/
+  double                    comploadmin;          /*+ Minimum vertex load per target load +*/
+  double                    comploadmax;          /*+ Maximum vertex load per target load +*/
 } KdgraphMapRbPartData;
 
 /*

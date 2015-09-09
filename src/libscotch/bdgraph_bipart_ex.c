@@ -1,4 +1,4 @@
-/* Copyright 2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2010,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -41,7 +41,9 @@
 /**                evenly as possible.                     **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 16 jul 2010     **/
-/**                                 to   : 29 aug 2010     **/
+/**                                 to   : 15 apr 2011     **/
+/**                # Version 6.0  : from : 11 sep 2011     **/
+/**                                 to   : 31 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -93,6 +95,7 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
   Gnum                  complocloaddlt;           /* Load of vertices moved locally  */
   Gnum                  compglbloaddlt;
   Gnum                  compglbloaddltmax;
+  Gnum                  compglbloaddltmat;
   Gnum                  commlocgain;
   Gnum                  commlocgainextn;
   Gnum                  fronlocnbr;
@@ -104,8 +107,8 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
   size_t                sortsiz;
   Gnum                  reduloctab[5];
   Gnum                  reduglbtab[5];
+  Gnum                  domndist;
   Gnum                  partval;
-  Gnum                  domdist;
 
   const Gnum * restrict const vertloctax = grafptr->s.vertloctax; /* Fast accesses */
   const Gnum * restrict const vendloctax = grafptr->s.vendloctax;
@@ -115,11 +118,18 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
   Gnum * restrict const       fronloctab = grafptr->fronloctab;
   GraphPart * restrict const  partgsttax = grafptr->partgsttax;
 
-  compglbloaddltmax = (Gnum) ((double) grafptr->compglbload0avg * paraptr->deltval);
+  partval = (grafptr->compglbload0dlt > 0) ? 1 : 0; /* Get number of underloaded part to receive vertices */
 
-  if ((abs (grafptr->compglbload0dlt) <= compglbloaddltmax) || /* If nothing to do */
-      (grafptr->fronglbnbr == 0))                 /* Or if no current frontier     */
-    return (0);                                   /* This algorithm is useless     */
+  compglbloaddltmax = (Gnum) ((double) grafptr->compglbload0avg * paraptr->deltval);
+  compglbloaddltmat = (partval == 0)
+                      ? (grafptr->compglbload0avg - grafptr->compglbload0min)
+                      : (grafptr->compglbload0max - grafptr->compglbload0avg);
+  if (compglbloaddltmax > compglbloaddltmat)
+    compglbloaddltmax = compglbloaddltmat;
+
+  if ((abs (grafptr->compglbload0dlt) < compglbloaddltmax) || /* If nothing to do */
+      (grafptr->fronglbnbr == 0))                 /* Or if no current frontier    */
+    return (0);                                   /* This algorithm is useless    */
 
   if (dgraphGhst (&grafptr->s) != 0) {            /* Compute ghost edge array if not already present */
     errorPrint ("bdgraphBipartEx: cannot compute ghost edge array");
@@ -139,8 +149,8 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
                      &frstloctab, (size_t) (gainsiz * sizeof (Gnum)),
                      &nextloctab, (size_t) (grafptr->fronlocnbr   * sizeof (Gnum)),
                      &loadglbtab, (size_t) (grafptr->s.procglbnbr * sizeof (Gnum)),
-                     &movegsttab, (size_t) (flagSize (grafptr->s.vertgstnbr) * sizeof (int)),
-                     &flagloctab, (size_t) (flagSize (grafptr->s.vertlocnbr) * sizeof (int)),
+                     &movegsttab, (size_t) (flagSize (grafptr->s.vertgstnbr + grafptr->s.baseval) * sizeof (int)), /* TRICK: use based vertices as flag array indices */
+                     &flagloctab, (size_t) (flagSize (grafptr->s.vertlocnbr + grafptr->s.baseval) * sizeof (int)),
                      &sorttab,    (size_t) (sortsiz), NULL) == NULL) {
     errorPrint ("bdgraphBipartEx: out of memory");
     cheklocval = 1;
@@ -149,8 +159,8 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
     memSet (gainloctab,  0, gainsiz * sizeof (Gnum)); /* Initialize gain array  */
     memSet (frstloctab, ~0, gainsiz * sizeof (Gnum)); /* Initialize linked list */
     memSet (nextloctab, ~0, grafptr->fronlocnbr * sizeof (Gnum));
-    memSet (movegsttab,  0, flagSize (grafptr->s.vertgstnbr) * sizeof (int));
-    memSet (flagloctab,  0, flagSize (grafptr->s.vertlocnbr) * sizeof (int));
+    memSet (movegsttab,  0, flagSize (grafptr->s.vertgstnbr + grafptr->s.baseval) * sizeof (int)); /* TRICK: based sizes */
+    memSet (flagloctab,  0, flagSize (grafptr->s.vertlocnbr + grafptr->s.baseval) * sizeof (int));
   }
 
 #ifdef SCOTCH_DEBUG_BDGRAPH1
@@ -167,8 +177,7 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
     return (1);
   }
 
-  partval = (grafptr->compglbload0dlt > 0) ? 1 : 0; /* Get number of underloaded part to receive vertices */
-  domdist = (Gnum) grafptr->domdist;
+  domndist = (Gnum) grafptr->domndist;
 
   edgegsttax = grafptr->s.edgegsttax;
   edlolocval = 1;                                 /* Assume no edge loads */
@@ -200,7 +209,7 @@ const BdgraphBipartExParam * restrict const paraptr) /*+ Method parameters +*/
       partdlt   = partval ^ partend;              /* Inverse of partdlt, because "partval" is the opposite */
       commgain += (2 * partdlt - 1) * edlolocval; /* Since partdlt has reversed meaning, reverse gain too  */
     }
-    commgain *= domdist;                          /* Adjust internal gains with respect to external gains */
+    commgain *= domndist;                         /* Adjust internal gains with respect to external gains */
     if (veexloctax != NULL)
       commgain += (2 * partval - 1) * veexloctax[vertlocnum]; /* Partval has reversed meaning */
 
@@ -469,7 +478,7 @@ loop_exit : ;
   reduloctab[0] = grafptr->fronlocnbr;
   reduloctab[1] = grafptr->complocload0;
   reduloctab[2] = grafptr->complocsize0;
-  reduloctab[3] = commlocgain * domdist;          /* Send internal gain */
+  reduloctab[3] = commlocgain * domndist;         /* Send internal gain */
   reduloctab[4] = commlocgainextn * 2;            /* Send external gain */
   if (MPI_Allreduce (reduloctab, reduglbtab, 5, GNUM_MPI, MPI_SUM, grafptr->s.proccomm) != MPI_SUCCESS) {
     errorPrint ("bdgraphBipartEx: communication error (5)");
@@ -481,6 +490,7 @@ loop_exit : ;
   grafptr->compglbsize0     = reduglbtab[2];
   grafptr->commglbload     += reduglbtab[3] / 2 + reduglbtab[4]; /* Add modifications, counted twice for internal gain */
   grafptr->commglbgainextn -= reduglbtab[4];      /* Account for modifications in external gain                        */
+  grafptr->bbalglbval       = (double) ((grafptr->compglbload0dlt < 0) ? (- grafptr->compglbload0dlt) : grafptr->compglbload0dlt) / (double) grafptr->compglbload0avg;
 
 #ifdef SCOTCH_DEBUG_BDGRAPH2
   if (bdgraphCheck (grafptr) != 0) {

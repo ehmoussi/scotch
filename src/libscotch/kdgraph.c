@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : kdgraph.c                               **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                Francois PELLEGRINI                     **/
 /**                                                        **/
 /**   FUNCTION   : Part of a parallel bipartitioning       **/
@@ -44,6 +44,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 31 mar 2008     **/
 /**                                 to     01 jul 2008     **/
+/**                # Version 6.0  : from : 08 sep 2012     **/
+/**                                 to     08 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -80,39 +82,12 @@ Kdgraph * restrict const         actgrafptr,      /* Active graph */
 const Dgraph * restrict const    srcgrafptr,      /* Source graph */
 Dmapping * restrict const        dmapptr)         /* Mapping      */
 {
-/*   const Arch * restrict archptr;                  /\* Pointer to mapping architecture *\/ */
-/*   ArchDom               domfrst;                  /\* First, largest domain           *\/ */
-/*   Gnum                  domfrstload;              /\* Load of first domain            *\/ */
-/*   Anum                  termnum; */
- 
-  actgrafptr->s          = *srcgrafptr;           /* Clone source graph */
-  actgrafptr->s.flagval &= ~DGRAPHFREEALL;
-  actgrafptr->levlnum    = 0;
-  actgrafptr->m.mappptr  = dmapptr;
+  actgrafptr->s            = *srcgrafptr;         /* Clone source graph */
+  actgrafptr->s.flagval   &= ~DGRAPHFREEALL;
+  actgrafptr->s.vlblloctax = NULL;                /* Do not propagate vertex labels within computations (e.g. dgraphInduce) */
+  actgrafptr->levlnum      = 0;
+  actgrafptr->m.mappptr    = dmapptr;
   archDomFrst (&dmapptr->archdat, &actgrafptr->m.domnorg);
-
-/*   if ((actgrafptr->comploadavg = (Gnum *) memAlloc (actgrafptr->m.domnnbr * sizeof (Gnum) * 2)) == NULL) { */
-/*     errorPrint ("kdgraphInit: out of memory"); */
-/*     return     (1); */
-/*   } */
-/*   actgrafptr->comploaddlt = actgrafptr->comploadavg + actgrafptr->m.domnnbr; */
-
-/*   archptr = &dmapptr->archdat; */
-/*   archDomFrst (archptr, &domfrst);                /\* Get first, largest domain *\/ */
-/*   domfrstload = archDomWght (archptr, &domfrst);  /\* Get its load              *\/ */
-
-/*   actgrafptr->comploadavg[0] = (archDomWght (archptr, &actgrafptr->m.domntab[0]) * actgrafptr->s.velolocsum) / domfrstload; */
-/*   actgrafptr->comploaddlt[0] = actgrafptr->s.velolocsum - actgrafptr->comploadavg[0]; */
-/*   for (termnum = 1; termnum < actgrafptr->m.domnnbr; termnum ++) { */
-/*     actgrafptr->comploadavg[termnum] = (archDomWght (archptr, &actgrafptr->m.domntab[termnum]) * actgrafptr->s.velolocsum) / domfrstload; */
-/*     actgrafptr->comploaddlt[termnum] = - actgrafptr->comploadavg[termnum]; */
-/*   } */
-
-/*   actgrafptr->fronlocnbr = 0;                       /\* No frontier yet *\/ */
-/*   actgrafptr->fronloctab = NULL; */
-/*   actgrafptr->commload   = 0; */
-/*   actgrafptr->levlnum    = 0; */
-/*   actgrafptr->leafnum    = 0; */
 
   return (0);
 }

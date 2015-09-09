@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : bdgraph_bipart_sq.h                     **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/
 /**                for the sequential bipartitioning       **/
