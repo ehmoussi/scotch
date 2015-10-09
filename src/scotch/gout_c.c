@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -55,7 +55,9 @@
 /**                # Version 5.0  : from : 25 may 2007     **/
 /**                                 to     25 may 2007     **/
 /**                # Version 5.1  : from : 25 oct 2007     **/
-/**                                 to     15 aug 2010     **/
+/**                                 to     14 feb 2011     **/
+/**                # Version 6.0  : from : 16 oct 2010     **/
+/**                                 to     12 nov 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -77,10 +79,10 @@
 
 static int                  C_fileNum = 0;        /* Number of file in arg list */
 File                        C_fileTab[C_FILENBR] = { /* The file array; public  */
-                              { "-", NULL, "r" },
-                              { "-", NULL, "r" },
-                              { "-", NULL, "r" },
-                              { "-", NULL, "w" } };
+                              { "r" },
+                              { "r" },
+                              { "r" },
+                              { "w" } };
 
 static unsigned int         C_geoFlag = C_GEOFLAGDEFAULT; /* Geometry flag */
 
@@ -150,12 +152,12 @@ char *                      argv[])
     return     (0);
   }
 
-  for (i = 0; i < C_FILENBR; i ++)                /* Set default stream pointers */
-    C_fileTab[i].pntr = (C_fileTab[i].mode[0] == 'r') ? stdin : stdout;
+  fileBlockInit (C_fileTab, C_FILENBR);           /* Set default stream pointers */
+
   for (i = 1; i < argc; i ++) {                   /* Loop for all option codes                        */
     if ((argv[i][0] != '-') || (argv[i][1] == '\0') || (argv[i][1] == '.')) { /* If found a file name */
       if (C_fileNum < C_FILEARGNBR)               /* File name has been given                         */
-        C_fileTab[C_fileNum ++].name = argv[i];
+        fileBlockName (C_fileTab, C_fileNum ++) = argv[i];
       else
         errorPrint ("main: too many file names given");
     }
@@ -164,7 +166,7 @@ char *                      argv[])
         case 'G' :                                /* Geometry parameters */
         case 'g' :
           if ((j = C_geoParse (&argv[i][2])) != 0)
-            errorPrint ("main: error in geometry option string (%d)", j);
+            errorPrint ("main: error in geometry option string '%d'", j);
           break;
         case 'H' :                                /* Give the usage message */
         case 'h' :
@@ -173,7 +175,7 @@ char *                      argv[])
         case 'M' :                                /* No-mapping flag */
         case 'm' :
           if (((argv[i][2] != 'N') && (argv[i][2] != 'n')) || (argv[i][3] != '\0'))
-            errorPrint ("main: error in mapping option string (%s)", &argv[i][2]);
+            errorPrint ("main: error in mapping option string '%s'", &argv[i][2]);
           C_filenamemapinp = "-";                 /* Default name to avoid opening   */
           C_filepntrmapinp = NULL;                /* NULL file pointer means no file */
           break;
@@ -184,11 +186,11 @@ char *                      argv[])
           break;
         case 'V' :
           fprintf (stderr, "gout, version " SCOTCH_VERSION_STRING "\n");
-          fprintf (stderr, "Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS, France\n");
+          fprintf (stderr, "Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS, France\n");
           fprintf (stderr, "This software is libre/free software under CeCILL-C -- see the user's manual for more information\n");
           return  (0);
         default :
-          errorPrint ("main: Unprocessed option (\"%s\")", argv[i]);
+          errorPrint ("main: Unprocessed option '%s'", argv[i]);
       }
     }
   }
@@ -348,16 +350,12 @@ FILE * const                stream)
   }
   geomfilenbr = (SCOTCH_Num) geomfileval;
 
-  if (((geomfiletab = (C_GeoVert  *) memAlloc (geomfilenbr               * sizeof (C_GeoVert)))  == NULL) ||
-      ((geomsorttab = (C_VertSort *) memAlloc (geomfilenbr               * sizeof (C_VertSort))) == NULL) ||
-      ((vertsorttab = (C_VertSort *) memAlloc (geomptr->grafptr->vertnbr * sizeof (C_VertSort))) == NULL)) {
+  if (memAllocGroup ((void **) (void *)
+                     &geomfiletab, (size_t) (geomfilenbr               * sizeof (C_GeoVert)),
+                     &geomsorttab, (size_t) (geomfilenbr               * sizeof (C_VertSort)),
+                     &vertsorttab, (size_t) (geomptr->grafptr->vertnbr * sizeof (C_VertSort)), NULL) == NULL) {
     errorPrint ("C_geoLoad: out of memory (2)");
-    if (geomfiletab != NULL) {
-      if (geomsorttab != NULL)
-        memFree (geomsorttab);
-      memFree (geomfiletab);
-    }
-    return (1);
+    return     (1);
   }
 
   o = 0;
@@ -436,16 +434,12 @@ FILE * const                stream)
       break;
     default :
       errorPrint ("C_geoLoad: invalid geometry type (%d)", geomfiletype);
-      memFree    (vertsorttab);
-      memFree    (geomsorttab);
-      memFree    (geomfiletab);
+      memFree    (geomfiletab);                   /* Free group leader */
       return     (1);
   }
   if (o != 0) {
     errorPrint ("C_geoLoad: bad input (2)");
-    memFree    (vertsorttab);
-    memFree    (geomsorttab);
-    memFree    (geomfiletab);
+    memFree    (geomfiletab);                     /* Free group leader */
     return     (1);
   }
 
@@ -455,9 +449,7 @@ FILE * const                stream)
   for (i = 1; i < geomfilenbr; i ++) {            /* Check geometric data integrity */
     if (geomsorttab[i].labl == geomsorttab[i - 1].labl) {
       errorPrint ("C_geoLoad: duplicate vertex label");
-      memFree    (vertsorttab);
-      memFree    (geomsorttab);
-      memFree    (geomfiletab);
+      memFree    (geomfiletab);                   /* Free group leader */
       return     (1);
     }
   }
@@ -486,19 +478,15 @@ FILE * const                stream)
     while ((j < geomfilenbr) && (geomsorttab[j].labl < vertsorttab[i].labl))
       j ++;                                       /* Search geometry vertex with same label             */
     if ((j >= geomfilenbr) || (geomsorttab[j].labl > vertsorttab[i].labl)) { /* If label does not exist */
-      errorPrint ("C_geoLoad: vertex geometry data not found (%d)",
+      errorPrint ("C_geoLoad: vertex geometry data not found for label '" SCOTCH_NUMSTRING "'",
                   vertsorttab[i].labl);
-      memFree    (vertsorttab);
-      memFree    (geomsorttab);
-      memFree    (geomfiletab);
+      memFree    (geomfiletab);                   /* Free group leader */
       return     (1);
     }
     geomptr->verttab[vertsorttab[i].num] = geomfiletab[geomsorttab[j ++].num];
   }
 
-  memFree (vertsorttab);
-  memFree (geomsorttab);
-  memFree (geomfiletab);
+  memFree (geomfiletab);                          /* Free group leader */
 
   return (0);
 }
@@ -552,8 +540,8 @@ FILE * const                stream)
   int                 vertsortflag;               /* Flag set if graph data sorted by label   */
   C_VertSort *        mapsorttab;                 /* Pointer to mapping data sorting array    */
   int                 mapsortflag;                /* Flag set if mapping data sorted by label */
-  SCOTCH_Num          mapsortval;                 /* Value of maximum size for compatibility   */
-  SCOTCH_Num          mapfileval;                 /* Value of maximum size for compatibility   */
+  SCOTCH_Num          mapsortval;                 /* Value of maximum size for compatibility  */
+  SCOTCH_Num          mapfileval;                 /* Value of maximum size for compatibility  */
   SCOTCH_Num          mapfilenbr;                 /* Number of mapping pairs in file          */
   SCOTCH_Num *        mapfiletab;                 /* Pointer to mapping data read from file   */
   SCOTCH_Num          i, j;
@@ -577,16 +565,12 @@ FILE * const                stream)
   }
   mapfilenbr = (SCOTCH_Num) mapfileval;
 
-  if (((mapfiletab  = (SCOTCH_Num *) memAlloc (mapfilenbr               * sizeof (SCOTCH_Num))) == NULL) ||
-      ((mapsorttab  = (C_VertSort *) memAlloc (mapfilenbr               * sizeof (C_VertSort))) == NULL) ||
-      ((vertsorttab = (C_VertSort *) memAlloc (mapptr->grafptr->vertnbr * sizeof (C_VertSort))) == NULL)) {
+  if (memAllocGroup ((void **) (void *)
+                     &mapfiletab,  (size_t) (mapfilenbr               * sizeof (SCOTCH_Num)),
+                     &mapsorttab,  (size_t) (mapfilenbr               * sizeof (C_VertSort)),
+                     &vertsorttab, (size_t) (mapptr->grafptr->vertnbr * sizeof (C_VertSort)), NULL) == NULL) {
     errorPrint ("C_mapLoad: out of memory (2)");
-    if (mapfiletab != NULL) {
-      if (mapsorttab != NULL)
-        memFree (mapsorttab);
-      memFree (mapfiletab);
-    }
-    return (1);
+    return     (1);
   }
 
   mapsortflag = 1;                                /* Assume mapping data sorted */
@@ -595,9 +579,7 @@ FILE * const                stream)
                 &mapsortval,
                 &mapfileval) != 2) {
       errorPrint ("C_mapLoad: bad input (2)");
-      memFree    (vertsorttab);
-      memFree    (mapsorttab);
-      memFree    (mapfiletab);
+      memFree    (mapfiletab);                    /* Free group leader */
       return     (1);
     }
     mapsorttab[i].labl = mapsortval;
@@ -614,9 +596,7 @@ FILE * const                stream)
   for (i = 1; i < mapfilenbr; i ++) {             /* Check mapping data integrity */
     if (mapsorttab[i].labl == mapsorttab[i - 1].labl) {
       errorPrint ("C_mapLoad: duplicate vertex label");
-      memFree    (vertsorttab);
-      memFree    (mapsorttab);
-      memFree    (mapfiletab);
+      memFree    (mapfiletab);                    /* Free group leader */
       return     (1);
     }
   }
@@ -636,7 +616,7 @@ FILE * const                stream)
   }
   else {                                          /* Graph does not have vertex labels */
     for (i = 0; i < mapptr->grafptr->vertnbr; i ++) {
-      vertsorttab[i].labl = i + mapsorttab[0].labl; /* Use first index as base value */
+      vertsorttab[i].labl = i + mapptr->grafptr->baseval;
       vertsorttab[i].num  = i;
     }
   }
@@ -649,9 +629,7 @@ FILE * const                stream)
     mapptr->labltab[vertsorttab[i].num] = mapfiletab[mapsorttab[j ++].num];
   }
 
-  memFree (vertsorttab);
-  memFree (mapsorttab);
-  memFree (mapfiletab);
+  memFree (mapfiletab);                           /* Free group leader */
 
   return (0);
 }

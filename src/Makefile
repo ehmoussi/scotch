@@ -1,4 +1,4 @@
-## Copyright 2004,2007-2010 ENSEIRB, INRIA & CNRS
+## Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 ##
 ## This file is part of the Scotch software package for static mapping,
 ## graph partitioning and sparse matrix ordering.
@@ -30,9 +30,9 @@
 ## knowledge of the CeCILL-C license and that you accept its terms.
 ##
 
-VERSION	= 5
-RELEASE = 1
-PATCHLEVEL = 10
+VERSION	= 6
+RELEASE = 0
+PATCHLEVEL = 4
 
 .PHONY				:	clean	default	install	ptscotch	realclean	required	scotch
 
@@ -93,16 +93,27 @@ scotch				:	required
 					(cd libscotch ;      $(MAKE) VERSION=$(VERSION) RELEASE=$(RELEASE) PATCHLEVEL=$(PATCHLEVEL) scotch && $(MAKE) install)
 					(cd scotch ;         $(MAKE) VERSION=$(VERSION) RELEASE=$(RELEASE) PATCHLEVEL=$(PATCHLEVEL) scotch && $(MAKE) install)
 					(cd libscotchmetis ; $(MAKE)                                                                scotch && $(MAKE) install)
-					(cd esmumps ;        $(MAKE)                                                                scotch && $(MAKE) install)
 
 ptscotch			:	required
 					(cd libscotch ;      $(MAKE) VERSION=$(VERSION) RELEASE=$(RELEASE) PATCHLEVEL=$(PATCHLEVEL) ptscotch && $(MAKE) ptinstall)
 					(cd scotch ;         $(MAKE) VERSION=$(VERSION) RELEASE=$(RELEASE) PATCHLEVEL=$(PATCHLEVEL) ptscotch && $(MAKE) ptinstall)
 					(cd libscotchmetis ; $(MAKE)                                                                ptscotch && $(MAKE) ptinstall)
-					(cd esmumps ;        $(MAKE)                                                                ptscotch && $(MAKE) ptinstall)
+
+check				:	scotch
+					(cd check ; $(MAKE) check)
+
+ptcheck				:	ptscotch
+					(cd check ; $(MAKE) ptcheck)
+
+esmumps				:	scotch
+					(cd esmumps ; $(MAKE) scotch && $(MAKE) install)
+
+ptesmumps			:	ptscotch
+					(cd esmumps ; $(MAKE) ptscotch && $(MAKE) ptinstall)
 
 install				:	required	$(bindir)	$(includedir)	$(libdir)	$(mandir)/man1
 					-$(CP) -f ../bin/[agm]*$(EXE) $(bindir)
+					-$(CP) -f ../bin/d[agm]*$(EXE) $(bindir)
 					-$(CP) -f ../include/*scotch*.h $(includedir)
 					-$(CP) -f ../lib/*scotch*$(LIB) $(libdir)
 					-$(CP) -f ../lib/*esmumps*$(LIB) $(libdir)
@@ -112,11 +123,13 @@ clean				:	required
 					(cd libscotch ;      $(MAKE) clean)
 					(cd scotch ;         $(MAKE) clean)
 					(cd libscotchmetis ; $(MAKE) clean)
+					(cd check ;          $(MAKE) clean)
 					(cd esmumps ;        $(MAKE) clean)
 
 realclean			:	required
 					(cd libscotch ;      $(MAKE) realclean)
 					(cd scotch ;         $(MAKE) realclean)
 					(cd libscotchmetis ; $(MAKE) realclean)
+					(cd check ;          $(MAKE) realclean)
 					(cd esmumps ;        $(MAKE) realclean)
 					-$(RM) ../bin/* ../include/* ../lib/*

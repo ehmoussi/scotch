@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -50,7 +50,9 @@
 /**                # Version 5.0  : from : 26 jan 2007     **/
 /**                                 to   : 16 mar 2008     **/
 /**                # Version 5.1  : from : 01 jul 2010     **/
-/**                                 to   : 25 jul 2010     **/
+/**                                 to   : 14 feb 2011     **/
+/**                # Version 6.0  : from : 01 jan 2012     **/
+/**                                 to   : 12 nov 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -71,11 +73,11 @@
 
 static int                  C_fileNum = 0;        /* Number of file in arg list */
 static File                 C_fileTab[C_FILENBR] = { /* File array              */
-                              { "-", NULL, "r" },
-                              { "-", NULL, "w" },
-                              { "-", NULL, "w" },
-                              { "-", NULL, "w" },
-                              { "-", NULL, "w" } };
+                              { "r" },
+                              { "w" },
+                              { "w" },
+                              { "w" },
+                              { "w" } };
 
 static const char *         C_usageList[] = {
   "gord [<input source file> [<output ordering file> [<output log file>]]] <options>",
@@ -120,8 +122,6 @@ char *                      argv[])
 
   errorProg ("gord");
 
-  intRandInit ();
-
   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
     usagePrint (stdout, C_usageList);
     return     (0);
@@ -132,12 +132,12 @@ char *                      argv[])
   straptr = NULL;
   SCOTCH_stratInit (&stradat);
 
-  for (i = 0; i < C_FILENBR; i ++)                /* Set default stream pointers */
-    C_fileTab[i].pntr = (C_fileTab[i].mode[0] == 'r') ? stdin : stdout;
+  fileBlockInit (C_fileTab, C_FILENBR);           /* Set default stream pointers */
+
   for (i = 1; i < argc; i ++) {                   /* Loop for all option codes                        */
     if ((argv[i][0] != '-') || (argv[i][1] == '\0') || (argv[i][1] == '.')) { /* If found a file name */
       if (C_fileNum < C_FILEARGNBR)               /* File name has been given                         */
-        C_fileTab[C_fileNum ++].name = argv[i];
+        fileBlockName (C_fileTab, C_fileNum ++) = argv[i];
       else
         errorPrint ("main: too many file names given");
     }
@@ -164,7 +164,7 @@ char *                      argv[])
                 straval |= SCOTCH_STRATSAFETY;
                 break;
               default :
-                errorPrint ("main: invalid strategy selection option (\"%c\")", argv[i][j]);
+                errorPrint ("main: invalid strategy selection option '%c'", argv[i][j]);
             }
           }
           break;
@@ -193,7 +193,7 @@ char *                      argv[])
           break;
         case 'V' :
           fprintf (stderr, "gord, version " SCOTCH_VERSION_STRING "\n");
-          fprintf (stderr, "Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS, France\n");
+          fprintf (stderr, "Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS, France\n");
           fprintf (stderr, "This software is libre/free software under CeCILL-C -- see the user's manual for more information\n");
           return  (0);
         case 'v' :                               /* Output control info */
@@ -208,12 +208,12 @@ char *                      argv[])
                 flagval |= C_FLAGVERBTIM;
                 break;
               default :
-                errorPrint ("main: unprocessed parameter \"%c\" in \"%s\"", argv[i][j], argv[i]);
+                errorPrint ("main: unprocessed parameter '%c' in '%s'", argv[i][j], argv[i]);
             }
           }
           break;
         default :
-          errorPrint ("main: unprocessed option (\"%s\")", argv[i]);
+          errorPrint ("main: unprocessed option '%s'", argv[i]);
       }
     }
   }
@@ -231,7 +231,7 @@ char *                      argv[])
     if (straptr != NULL)
       errorPrint ("main: options '-c' and '-o' are exclusive");
 
-    SCOTCH_stratGraphOrderBuild (&stradat, straval, 0.2);
+    SCOTCH_stratGraphOrderBuild (&stradat, straval, 0, 0.2);
   }
 
   clockStop  (&runtime[0]);                       /* Get input time */

@@ -1,4 +1,4 @@
-The terms under which this copy of the Scotch 5.1 distribution
+The terms under which this copy of the Scotch 6.0 distribution
 is provided to you are described in file "LICENSE_en.txt", located
 in the same directory as this file.
 

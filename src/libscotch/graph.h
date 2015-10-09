@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : graph.h                                 **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declarations   **/
 /**                for the source graph functions.         **/
@@ -60,6 +61,8 @@
 /**                                 to     01 jun 2008     **/
 /**                # Version 5.1  : from : 11 aug 2010     **/
 /**                                 to     04 nov 2010     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     09 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -117,12 +120,22 @@ typedef struct VertList_ {
 
 typedef int GraphFlag;                            /*+ Graph property flags +*/
 
+/*+ The graph parallel context structure. +*/
+
+typedef struct GraphProc_ {
+#ifdef SCOTCH_PTSCOTCH
+  MPI_Comm                  proccomm;             /*+ Communicator used for parallel algorithm +*/
+  int                       procglbnbr;           /*+ Number of processes in communicator      +*/
+  int                       proclocnum;           /*+ Rank of process in current communicator  +*/
+#endif /* SCOTCH_PTSCOTCH */
+} GraphProc;
+
 /*+ The graph structure. +*/
 
 typedef struct Graph_ {
   GraphFlag                 flagval;              /*+ Graph properties                          +*/
   Gnum                      baseval;              /*+ Base index for edge/vertex arrays         +*/
-  Gnum                      vertnbr;              /*+ Nmber of vertices in graph                +*/
+  Gnum                      vertnbr;              /*+ Number of vertices in graph               +*/
   Gnum                      vertnnd;              /*+ Number of vertices in graph, plus baseval +*/
   Gnum *                    verttax;              /*+ Vertex array [based]                      +*/
   Gnum *                    vendtax;              /*+ End vertex array [based]                  +*/
@@ -135,11 +148,7 @@ typedef struct Graph_ {
   Gnum *                    edlotax;              /*+ Edge load array (if present)              +*/
   Gnum                      edlosum;              /*+ Sum of edge (in fact arc) loads           +*/
   Gnum                      degrmax;              /*+ Maximum degree                            +*/
-#ifdef SCOTCH_PTSCOTCH
-  MPI_Comm                  proccomm;             /*+ Communicator used for parallel algorithm  +*/
-  int                       procglbnbr;           /*+ Number of processes in communictor        +*/
-  int                       proclocnum;           /*+ Rank of process in current communicator   +*/
-#endif /* SCOTCH_PTSCOTCH */
+  GraphProc *               procptr;              /*+ Pointer to parallel context (if any)      +*/
 } Graph;
 
 /*
@@ -162,14 +171,14 @@ int                         listCopy            (VertList *, VertList *);
 int                         graphInit           (Graph * const);
 void                        graphExit           (Graph * const);
 void                        graphFree           (Graph * const);
+Gnum                        graphBase           (Graph * const, const Gnum);
+int                         graphBand           (const Graph * restrict const, const Gnum, Gnum * restrict const, const Gnum, Gnum * restrict * restrict const, Gnum * restrict const, Gnum * restrict const, Gnum * restrict const, const Gnum * restrict const, Gnum * restrict const);
+int                         graphCheck          (const Graph *);
+int                         graphInduceList     (const Graph * const, const VertList * const, Graph * const);
+int                         graphInducePart     (const Graph * const, const GraphPart *, const Gnum, const GraphPart, Graph * const);
 int                         graphLoad           (Graph * const, FILE * const, const Gnum, const GraphFlag);
 int                         graphLoad2          (const Gnum, const Gnum, const Gnum * const, const Gnum * const, Gnum * restrict const, const Gnum, const Gnum * const);
 int                         graphSave           (const Graph * const, FILE * const);
-Gnum                        graphBase           (Graph * const, const Gnum);
-int                         graphInduceList     (const Graph * const, const VertList * const, Graph * const);
-int                         graphInducePart     (const Graph * const, const GraphPart *, const Gnum, const GraphPart, Graph * const);
-int                         graphCheck          (const Graph *);
-int                         graphPtscotch       ();
 
 #ifdef GEOM_H
 int                         graphGeomLoadChac   (Graph * restrict const, Geom * restrict const, FILE * const, FILE * const, const char * const);

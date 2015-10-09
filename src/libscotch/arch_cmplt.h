@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_cmplt.h                            **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/
 /**                for the complete graph target           **/
@@ -61,12 +62,17 @@
 /**                                 to     09 jan 2004     **/
 /**                # Version 5.1  : from : 19 jan 2008     **/
 /**                                 to     19 jan 2008     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     01 jul 2014     **/
 /**                                                        **/
 /************************************************************/
 
 /*
 **  The type and structure definitions.
 */
+
+#ifndef ARCH_CMPLT_H_STRUCT
+#define ARCH_CMPLT_H_STRUCT
 
 /*+ The complete graph definitions. +*/
 
@@ -79,9 +85,15 @@ typedef struct ArchCmpltDom_ {
   Anum                      numnbr;               /*+ Number of vertices    +*/
 } ArchCmpltDom;
 
+#endif /* ARCH_CMPLT_H_STRUCT */
+
 /*
 **  The function prototypes.
 */
+
+#ifndef ARCH_NOPROTO
+#ifndef ARCH_CMPLT_H_PROTO
+#define ARCH_CMPLT_H_PROTO
 
 #ifndef ARCH_CMPLT
 #define static
@@ -99,8 +111,12 @@ int                         archCmpltDomFrst    (const ArchCmplt * const, ArchCm
 int                         archCmpltDomLoad    (const ArchCmplt * const, ArchCmpltDom * const, FILE * const);
 int                         archCmpltDomSave    (const ArchCmplt * const, const ArchCmpltDom * const, FILE * const);
 int                         archCmpltDomBipart  (const ArchCmplt * const, const ArchCmpltDom * const, ArchCmpltDom * restrict const, ArchCmpltDom * restrict const);
+int                         archCmpltDomIncl    (const ArchCmplt * const, const ArchCmpltDom * const, const ArchCmpltDom * const);
 #ifdef SCOTCH_PTSCOTCH
 int                         archCmpltDomMpiType (const ArchCmplt * const, MPI_Datatype * const);
 #endif /* SCOTCH_PTSCOTCH */
 
 #undef static
+
+#endif /* ARCH_CMPLT_H_PROTO */
+#endif /* ARCH_NOPROTO       */

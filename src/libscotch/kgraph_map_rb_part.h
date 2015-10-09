@@ -1,4 +1,4 @@
-/* Copyright 2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,27 +34,18 @@
 /**   NAME       : kgraph_map_rb_part.h                    **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/
 /**                for the Dual Recursive Bipartitioning   **/
 /**                mapping algorithm.                      **/
 /**                                                        **/
-/**   DATES      : # Version 5.2  : from : 22 sep 2008     **/
-/**                                 to     04 nov 2010     **/
+/**   DATES      : # Version 5.1  : from : 22 sep 2008     **/
+/**                                 to     14 apr 2011     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     10 aug 2014     **/
 /**                                                        **/
 /************************************************************/
-
-/*
-**  The type and structure definitions.
-*/
-
-typedef struct KgraphMapRbPartData_ {
-  const Graph *             topgrafptr;           /*+ Pointer to top-level graph          +*/
-  Gnum *                    topfrontab;           /*+ Pointer to top-level frontier array +*/
-  Gnum                      topfronnbr;           /*+ Current number of frontier vertices +*/
-  Mapping *                 mappptr;
-  const KgraphMapRbParam *  paraptr;
-} KgraphMapRbPartData;
 
 /*
 **  The function prototypes.
@@ -64,6 +55,6 @@ typedef struct KgraphMapRbPartData_ {
 #define static
 #endif
 
-int                         kgraphMapRbPart     (Kgraph * const, const KgraphMapRbParam * const);
+int                         kgraphMapRbPart     (const KgraphMapRbData * restrict const, const Graph * restrict const, const Anum, KgraphMapRbVflo * restrict);
 
 #undef static

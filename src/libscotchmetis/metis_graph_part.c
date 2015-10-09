@@ -1,4 +1,4 @@
-/* Copyright 2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -43,6 +43,8 @@
 /**                                 to     07 jun 2007     **/
 /**                # Version 5.1  : from : 06 jun 2009     **/
 /**                                 to     30 jun 2010     **/
+/**                # Version 6.0  : from : 23 dec 2011     **/
+/**                                 to     13 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -74,15 +76,17 @@
 
 static
 int
-_SCOTCH_METIS_PartGraph (
-const int * const           n,
-const int * const           xadj,
-const int * const           adjncy,
-const int * const           vwgt,
-const int * const           adjwgt,
-const int * const           numflag,
-const int * const           nparts,
-int * const                 part)
+_SCOTCH_METIS_PartGraph2 (
+const SCOTCH_Num * const    n,
+const SCOTCH_Num * const    xadj,
+const SCOTCH_Num * const    adjncy,
+const SCOTCH_Num * const    vwgt,
+const SCOTCH_Num * const    adjwgt,
+const SCOTCH_Num * const    numflag,
+const SCOTCH_Num * const    nparts,
+SCOTCH_Num * const          part,
+SCOTCH_Num                  flagval,
+double                      kbalval)
 {
   SCOTCH_Graph        grafdat;                    /* Scotch graph object to interface with libScotch */
   SCOTCH_Strat        stradat;
@@ -90,21 +94,16 @@ int * const                 part)
   SCOTCH_Num          vertnbr;
   int                 o;
 
-  if (sizeof (SCOTCH_Num) != sizeof (int)) {
-    errorPrint ("METIS_PartGraph* (as of SCOTCH): SCOTCH_Num type should equate to int");
-    return (1);
-  }
-
   SCOTCH_graphInit (&grafdat);
 
   baseval = *numflag;
   vertnbr = *n;
 
   o = 1;                                          /* Assume something will go wrong */
-  if (SCOTCH_graphBuild (&grafdat,
-                         baseval, vertnbr, xadj, xadj + 1, vwgt, NULL,
+  if (SCOTCH_graphBuild (&grafdat, baseval, vertnbr, xadj, xadj + 1, vwgt, NULL,
                          xadj[vertnbr] - baseval, adjncy, adjwgt) == 0) {
-    SCOTCH_stratInit (&stradat);
+    SCOTCH_stratInit          (&stradat);
+    SCOTCH_stratGraphMapBuild (&stradat, flagval, *nparts, kbalval);
 #ifdef SCOTCH_DEBUG_ALL
     if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
 #endif /* SCOTCH_DEBUG_ALL */
@@ -113,6 +112,9 @@ int * const                 part)
   }
   SCOTCH_graphExit (&grafdat);
 
+  if (o != 0)
+    return (1);
+
   if (baseval != 0) {                             /* MeTiS part array is based, Scotch is not */
     SCOTCH_Num          vertnum;
 
@@ -120,59 +122,47 @@ int * const                 part)
       part[vertnum] += baseval;
   }
 
-  return (o);
+  return (0);
 }
 
 /*
 **
 */
 
+static
 void
-METISNAMEU(METIS_PartGraphKway) (
-const int * const           n,
-const int * const           xadj,
-const int * const           adjncy,
-const int * const           vwgt,
-const int * const           adjwgt,
-const int * const           wgtflag,
-const int * const           numflag,
-const int * const           nparts,
-const int * const           options,
-int * const                 edgecut,
-int * const                 part)
+_SCOTCH_METIS_PartGraph (
+const SCOTCH_Num * const    n,
+const SCOTCH_Num * const    xadj,
+const SCOTCH_Num * const    adjncy,
+const SCOTCH_Num * const    vwgt,
+const SCOTCH_Num * const    adjwgt,
+const SCOTCH_Num * const    wgtflag,
+const SCOTCH_Num * const    numflag,
+const SCOTCH_Num * const    nparts,
+const SCOTCH_Num * const    options,
+SCOTCH_Num * const          edgecut,
+SCOTCH_Num * const          part,
+SCOTCH_Num                  flagval,
+double                      kbalval)
 {
-  METISNAMEU(METIS_PartGraphRecursive) (n, xadj, adjncy, vwgt, adjwgt, wgtflag, numflag, nparts, options, edgecut, part);
-}
-
-void
-METISNAMEU(METIS_PartGraphRecursive) (
-const int * const           n,
-const int * const           xadj,
-const int * const           adjncy,
-const int * const           vwgt,
-const int * const           adjwgt,
-const int * const           wgtflag,
-const int * const           numflag,
-const int * const           nparts,
-const int * const           options,
-int * const                 edgecut,
-int * const                 part)
-{
-  const int *           vwgt2;
-  const int *           adjwgt2;
-  const int * restrict  parttax;
-  const int * restrict  verttax;
-  const int * restrict  edgetax;
-  int                   vertnnd;
-  int                   vertnum;
-  int                   edgenum;
-  int                   commcut;
+  const SCOTCH_Num *          vwgt2;
+  const SCOTCH_Num *          adjwgt2;
+  const SCOTCH_Num * restrict parttax;
+  const SCOTCH_Num * restrict verttax;
+  const SCOTCH_Num * restrict edgetax;
+  SCOTCH_Num                  vertnnd;
+  SCOTCH_Num                  vertnum;
+  SCOTCH_Num                  edgenum;
+  SCOTCH_Num                  commcut;
 
   vwgt2   = (((*wgtflag & 2) != 0) ? vwgt   : NULL);
   adjwgt2 = (((*wgtflag & 1) != 0) ? adjwgt : NULL);
 
-  if (_SCOTCH_METIS_PartGraph (n, xadj, adjncy, vwgt2, adjwgt2, numflag, nparts, part) != 0)
+  if (_SCOTCH_METIS_PartGraph2 (n, xadj, adjncy, vwgt2, adjwgt2, numflag, nparts, part, flagval, kbalval) != 0) {
+    *edgecut = -1;                                /* Indicate error */
     return;
+  }
 
   parttax = part   - *numflag;
   verttax = xadj   - *numflag;
@@ -184,8 +174,8 @@ int * const                 part)
 
   if (adjwgt2 == NULL) {                          /* If graph does not have edge weights */
     for ( ; vertnum < vertnnd; vertnum ++) {
-      int                 edgennd;
-      int                 partval;
+      SCOTCH_Num          edgennd;
+      SCOTCH_Num          partval;
 
       partval = parttax[vertnum];
       for (edgennd = verttax[vertnum + 1]; edgenum < edgennd; edgenum ++) {
@@ -195,16 +185,16 @@ int * const                 part)
     }
   }
   else {                                          /* Graph has edge weights */
-    const int * restrict  edlotax;
+    const SCOTCH_Num * restrict edlotax;
 
     edlotax = adjwgt2 - *numflag;
     for ( ; vertnum < vertnnd; vertnum ++) {
-      int                 edgennd;
-      int                 partval;
+      SCOTCH_Num          edgennd;
+      SCOTCH_Num          partval;
 
       partval = parttax[vertnum];
       for (edgennd = verttax[vertnum + 1]; edgenum < edgennd; edgenum ++) {
-        int                 vertend;
+        SCOTCH_Num          vertend;
 
         vertend = edgetax[edgenum];
         if (parttax[vertend] != partval)
@@ -215,38 +205,78 @@ int * const                 part)
   *edgecut = commcut / 2;
 }
 
+/*
+**
+*/
+
+void
+METISNAMEU (METIS_PartGraphKway) (
+const SCOTCH_Num * const    n,
+const SCOTCH_Num * const    xadj,
+const SCOTCH_Num * const    adjncy,
+const SCOTCH_Num * const    vwgt,
+const SCOTCH_Num * const    adjwgt,
+const SCOTCH_Num * const    wgtflag,
+const SCOTCH_Num * const    numflag,
+const SCOTCH_Num * const    nparts,
+const SCOTCH_Num * const    options,
+SCOTCH_Num * const          edgecut,
+SCOTCH_Num * const          part)
+{
+  _SCOTCH_METIS_PartGraph (n, xadj, adjncy, vwgt, adjwgt, wgtflag, numflag, nparts, options, edgecut, part,
+                           SCOTCH_STRATDEFAULT, 0.01);
+}
+
+void
+METISNAMEU (METIS_PartGraphRecursive) (
+const SCOTCH_Num * const    n,
+const SCOTCH_Num * const    xadj,
+const SCOTCH_Num * const    adjncy,
+const SCOTCH_Num * const    vwgt,
+const SCOTCH_Num * const    adjwgt,
+const SCOTCH_Num * const    wgtflag,
+const SCOTCH_Num * const    numflag,
+const SCOTCH_Num * const    nparts,
+const SCOTCH_Num * const    options,
+SCOTCH_Num * const          edgecut,
+SCOTCH_Num * const          part)
+{
+  _SCOTCH_METIS_PartGraph (n, xadj, adjncy, vwgt, adjwgt, wgtflag, numflag, nparts, options, edgecut, part,
+                           SCOTCH_STRATRECURSIVE, 0.01);
+}
+
 /* Scotch does not directly consider communication volume.
 ** Instead, wertex communication loads are added to the edge
-** loads so as to emulate this behavior : heavily weighted
+** loads so as to emulate this behavior: heavily weighted
 ** edges, connected to heavily communicating vertices, will
 ** be less likely to be cut.
 */
 
 void
-METISNAMEU(METIS_PartGraphVKway) (
-const int * const           n,
-const int * const           xadj,
-const int * const           adjncy,
-const int * const           vwgt,
-const int * const           vsize,
-const int * const           wgtflag,
-const int * const           numflag,
-const int * const           nparts,
-const int * const           options,
-int * const                 volume,
-int * const                 part)
+METISNAMEU (METIS_PartGraphVKway) (
+const SCOTCH_Num * const    n,
+const SCOTCH_Num * const    xadj,
+const SCOTCH_Num * const    adjncy,
+const SCOTCH_Num * const    vwgt,
+const SCOTCH_Num * const    vsize,
+const SCOTCH_Num * const    wgtflag,
+const SCOTCH_Num * const    numflag,
+const SCOTCH_Num * const    nparts,
+const SCOTCH_Num * const    options,
+SCOTCH_Num * const          volume,
+SCOTCH_Num * const          part)
 {
-  int                   baseval;
-  const int *           vwgt2;
-  const int *           vsize2;
-  int                   vsizval;                  /* Communication volume of current vertex */
-  int                   vertnbr;
-  int                   vertnum;
-  int                   edgenum;
-  const int * restrict  edgetax;
-  const int * restrict  parttax;
-  int * restrict        nghbtab;
-  int                   commvol;
+  SCOTCH_Num                  baseval;
+  const SCOTCH_Num *          vwgt2;
+  const SCOTCH_Num *          vsize2;
+  SCOTCH_Num                  vsizval;            /* Communication volume of current vertex */
+  SCOTCH_Num                  vertnbr;
+  SCOTCH_Num                  vertnum;
+  SCOTCH_Num                  edgenum;
+  const SCOTCH_Num * restrict edgetax;
+  const SCOTCH_Num * restrict parttax;
+  SCOTCH_Num * restrict       nghbtab;
+  SCOTCH_Num                  commvol;
 
   vsize2  = ((*wgtflag & 1) != 0) ? vsize : NULL;
   vwgt2   = ((*wgtflag & 2) != 0) ? vwgt  : NULL;
@@ -254,35 +284,38 @@ int * const                 part)
   vertnbr = *n;
   edgetax = adjncy - baseval;
 
-  if (vsize2 == NULL)                             /* If no communication load data provided */
-    _SCOTCH_METIS_PartGraph (n, xadj, adjncy, vwgt2, NULL, numflag, nparts, part);
+  if (vsize2 == NULL) {                           /* If no communication load data provided */
+    if (_SCOTCH_METIS_PartGraph2 (n, xadj, adjncy, vwgt2, NULL, numflag, nparts, part, SCOTCH_STRATDEFAULT, 0.01) != 0)
+      return;
+  }
   else {                                          /* Will have to turn communication volumes into edge loads */
-    const int * restrict  vsiztax;
-    int                   edgenbr;
-    int * restrict        edlotax;
-    int                   o;
+    const SCOTCH_Num * restrict vsiztax;
+    SCOTCH_Num                  edgenbr;
+    SCOTCH_Num * restrict       edlotax;
+    int                         o;
 
     edgenbr = xadj[vertnbr] - baseval;
-    if ((edlotax = memAlloc (edgenbr * sizeof (int))) == NULL)
+    if ((edlotax = memAlloc (edgenbr * sizeof (SCOTCH_Num))) == NULL)
       return;
     edlotax -= baseval;                           /* Base access to edlotax */
     vsiztax  = vsize2 - baseval;
 
     for (vertnum = 0, edgenum = baseval;          /* Un-based scan of vertex array xadj */
          vertnum < vertnbr; vertnum ++) {
-      int                 vsizval;                /* Communication size of current vertex */
-      int                 edgennd;
+      SCOTCH_Num          vsizval;                /* Communication size of current vertex */
+      SCOTCH_Num          edgennd;
 
       vsizval = vsize2[vertnum];
       for (edgennd = xadj[vertnum + 1]; edgenum < edgennd; edgenum ++) { /* Based traversal of edge array adjncy */
-        int                 vertend;              /* Based end vertex number                                     */
+        SCOTCH_Num          vertend;              /* Based end vertex number                                     */
 
         vertend = edgetax[edgenum];
         edlotax[edgenum] = vsizval + vsiztax[vertend];
       }
     }
 
-    o = _SCOTCH_METIS_PartGraph (n, xadj, adjncy, vwgt2, edlotax + baseval, numflag, nparts, part);
+    o = _SCOTCH_METIS_PartGraph2 (n, xadj, adjncy, vwgt2, edlotax + baseval, numflag, nparts, part,
+                                  SCOTCH_STRATDEFAULT, 0.01);
 
     memFree (edlotax + baseval);
 
@@ -290,16 +323,16 @@ int * const                 part)
       return;
   }
 
-  if ((nghbtab = memAlloc (*nparts * sizeof (int))) == NULL)
+  if ((nghbtab = memAlloc (*nparts * sizeof (SCOTCH_Num))) == NULL)
     return;
-  memSet (nghbtab, ~0, *nparts * sizeof (int));
+  memSet (nghbtab, ~0, *nparts * sizeof (SCOTCH_Num));
 
   parttax = part - baseval;
   vsizval = 1;                                      /* Assume no vertex communication sizes */
   for (vertnum = 0, edgenum = baseval, commvol = 0; /* Un-based scan of vertex array xadj   */
        vertnum < vertnbr; vertnum ++) {
-    int                 partval;
-    int                 edgennd;
+    SCOTCH_Num          partval;
+    SCOTCH_Num          edgennd;
 
     partval = part[vertnum];
     nghbtab[partval] = vertnum;                   /* Do not count local neighbors in communication volume */
@@ -307,8 +340,8 @@ int * const                 part)
       vsizval = vsize2[vertnum];
 
     for (edgennd = xadj[vertnum + 1]; edgenum < edgennd; edgenum ++) { /* Based traversal of edge array adjncy */
-      int                 vertend;                /* Based end vertex number                                   */
-      int                 partend;
+      SCOTCH_Num          vertend;                /* Based end vertex number                                   */
+      SCOTCH_Num          partend;
 
       vertend = edgetax[edgenum];
       partend = parttax[vertend];

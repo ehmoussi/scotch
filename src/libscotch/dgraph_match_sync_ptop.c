@@ -1,4 +1,4 @@
-/* Copyright 2008,2009 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2009,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -42,6 +42,8 @@
 /**                                                        **/
 /**    DATES     : # Version 5.1  : from : 01 dec 2008     **/
 /**                                 to   : 22 apr 2009     **/
+/**                # Version 6.0  : from : 03 apr 2012     **/
+/**                                 to   : 03 apr 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -102,8 +104,6 @@ DgraphMatchData * restrict const  mateptr)
   DgraphCoarsenVert * const           vsnddattab = mateptr->c.vsnddattab; /* [norestrict:async] */
 
   procngbnbr = grafptr->procngbnbr;
-  if (procngbnbr <= 0)                            /* Nothing to do */
-    return (0);
 
 #ifdef SCOTCH_DEBUG_DGRAPH2
   if (edgeloctax == NULL) {

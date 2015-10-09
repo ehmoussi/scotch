@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -42,6 +42,8 @@
 /**                                 to     01 dec 2003     **/
 /**                # Version 5.0  : from : 19 dec 2006     **/
 /**                                 to     30 may 2008     **/
+/**                # Version 6.0  : from : 17 oct 2012     **/
+/**                                 to     04 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -99,14 +101,41 @@ void
 hgraphFree (
 Hgraph * restrict const     grafptr)
 {
-  if ((grafptr->vnhdtax != NULL)               && /* Free end vertex array for non-halo vertices */
-      (grafptr->vnhdtax != grafptr->s.vendtax) &&
+  if ((grafptr->vnhdtax != NULL) &&               /* Free end vertex array for non-halo vertices */
       ((grafptr->s.flagval & HGRAPHFREEVNHD) != 0))
-    memFree (grafptr->vnhdtax);
+    memFree (grafptr->vnhdtax + grafptr->s.baseval);
 
   graphFree (&grafptr->s);                        /* Free graph data */
 
 #ifdef SCOTCH_DEBUG_HGRAPH2
   memSet (grafptr, ~0, sizeof (Hgraph));          /* Purge graph fields */
 #endif /* SCOTCH_DEBUG_HGRAPH2 */
+}
+
+/* This routine creates a non-halo graph from a
+** halo graph.
+** It returns:
+** - VOID  : in all cases.
+*/
+
+void
+hgraphUnhalo (
+const Hgraph * restrict const grafptr,
+Graph * restrict const        ugrfptr)
+{
+  ugrfptr->flagval = grafptr->s.flagval & (GRAPHBITSUSED & ~GRAPHFREETABS); /* Remove extended graph class flags and do not allow freeing */
+  ugrfptr->baseval = grafptr->s.baseval;
+  ugrfptr->vertnbr = grafptr->vnohnbr;
+  ugrfptr->vertnnd = grafptr->vnohnnd;
+  ugrfptr->verttax = grafptr->s.verttax;
+  ugrfptr->vendtax = grafptr->vnhdtax;
+  ugrfptr->velotax = grafptr->s.velotax;
+  ugrfptr->velosum = grafptr->vnlosum;
+  ugrfptr->vnumtax = grafptr->s.vnumtax;
+  ugrfptr->vlbltax = NULL;
+  ugrfptr->edgenbr = grafptr->enohnbr;
+  ugrfptr->edgetax = grafptr->s.edgetax;
+  ugrfptr->edlotax = grafptr->s.edlotax;
+  ugrfptr->edlosum = grafptr->enohsum;
+  ugrfptr->degrmax = grafptr->s.degrmax;          /* Upper bound */
 }

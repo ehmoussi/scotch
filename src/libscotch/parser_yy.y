@@ -1,5 +1,5 @@
 %{
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -48,7 +48,9 @@
 /**                # Version 4.0  : from : 20 dec 2001     **/
 /**                                 to     11 jun 2004     **/
 /**                # Version 5.1  : from : 30 oct 2007     **/
-/**                                 to     09 jun 2009     **/
+/**                                 to     24 jul 2011     **/
+/**                # Version 6.0  : from : 30 sep 2014     **/
+/**                                 to     30 sep 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -112,8 +114,8 @@ extern unsigned int         parsermethtokentab[]; /* Pre-definition for stupid c
 %type <TEST>         TESTEXPR4     TESTVAL       TESTVAR
 %type <TESTOP>       TESTRELOP     TESTEXPR1OP   TESTEXPR2OP   TESTEXPR3OP
 %type <CASEVAL>      VALCASE
-%type <DOUBLE>       VALDOUBLE
-%type <INTEGER>      VALINT
+%type <DOUBLE>       VALDOUBLE     VALSDOUBLE
+%type <INTEGER>      VALINT        VALSINT
 %type <STRING>       VALSTRING
 %type <STRAT>        STRATCONCAT   STRATTEST     STRATTESTELSE STRATEMPTY
 %type <STRAT>        STRATGROUP    STRATMETHOD   STRATSELECT
@@ -346,7 +348,7 @@ PARAMPARAM    : PARAMNAME
 
                 ($<SAVE>$).tabl = parserstrattab; /* Save current strategy tables */
                 parserparamcurr = &paratab[para]; /* Save current parameter value */
-                stratParserSelect (parsermethtokentab[parserparamcurr->type]);
+                stratParserSelect (parsermethtokentab[parserparamcurr->type & ~STRATPARAMDEPRECATED]); /* Get non-deprecated type */
                 if (parserparamcurr->type == STRATPARAMSTRAT) /* If parameter is a strategy           */
                   parserstrattab = (StratTab *) parserparamcurr->datasltr; /* Use new strategy tables */
               }
@@ -363,72 +365,80 @@ PARAMVAL      : VALCASE
                 char *            p;              /* Pointer to selector string */
                 int               i;              /* Index in selector string   */
 
-                c = ($1);                         /* First, use char as is */
-                for (p = (char *) parserparamcurr->datasltr, i = 0;
-                     (*p != '\0') && (*p != c);
-                     p ++, i ++) ;
-                if (*p == '\0') {                 /* Char was not found         */
-                  c = tolower (c);                /* Convert char to lower case */
+                if ((parserparamcurr->type & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
+                  c = ($1);                       /* First, use char as is                                   */
                   for (p = (char *) parserparamcurr->datasltr, i = 0;
                        (*p != '\0') && (*p != c);
                        p ++, i ++) ;
-                  if (*p == '\0') {
-                    errorPrint ("stratParserParse: invalid method parameter switch \"%s=%c\", before \"%s\"",
-                                parserparamcurr->name, ($1), stratParserRemain ());
+                  if (*p == '\0') {               /* Char was not found         */
+                    c = tolower (c);              /* Convert char to lower case */
+                    for (p = (char *) parserparamcurr->datasltr, i = 0;
+                         (*p != '\0') && (*p != c);
+                         p ++, i ++) ;
+                    if (*p == '\0') {
+                      errorPrint ("stratParserParse: invalid method parameter switch \"%s=%c\", before \"%s\"",
+                                  parserparamcurr->name, ($1), stratParserRemain ());
+                      YYABORT;
+                    }
+                  }
+
+#ifdef SCOTCH_DEBUG_PARSER2
+                  if ((parserparamcurr->dataofft - parserparamcurr->database + sizeof (int)) > sizeof (StratNodeMethodData)) {
+                    errorPrint ("stratParserParse: internal error (1)");
                     YYABORT;
                   }
-                }
-
-#ifdef SCOTCH_DEBUG_PARSER2
-                if ((parserparamcurr->dataofft - parserparamcurr->database + sizeof (int)) > sizeof (StratNodeMethodData)) {
-                  errorPrint ("stratParserParse: internal error (1)");
-                  YYABORT;
-                }
 #endif /* SCOTCH_DEBUG_PARSER2 */
 
-                *((int *) ((byte *) &parserstratcurr->data.method.data +
-                           (parserparamcurr->dataofft -
-                            parserparamcurr->database))) = i;
+                  *((int *) ((byte *) &parserstratcurr->data.method.data +
+                             (parserparamcurr->dataofft -
+                              parserparamcurr->database))) = i;
+                }
               }
-              | VALDOUBLE
+              | VALSDOUBLE
               {
+                if ((parserparamcurr->type & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
 #ifdef SCOTCH_DEBUG_PARSER2
-                if ((parserparamcurr->dataofft - parserparamcurr->database + sizeof (double)) > sizeof (StratNodeMethodData)) {
-                  errorPrint ("stratParserParse: internal error (2)");
-                  YYABORT;
-                }
+                  if ((parserparamcurr->dataofft - parserparamcurr->database + sizeof (double)) > sizeof (StratNodeMethodData)) {
+                    errorPrint ("stratParserParse: internal error (2)");
+                    YYABORT;
+                  }
 #endif /* SCOTCH_DEBUG_PARSER2 */
 
-                *((double *) ((byte *) &parserstratcurr->data.method.data +
-                              (parserparamcurr->dataofft -
-                               parserparamcurr->database))) = ($1);
+                  *((double *) ((byte *) &parserstratcurr->data.method.data +
+                                (parserparamcurr->dataofft -
+                                 parserparamcurr->database))) = ($1);
+                }
               }
-              | VALINT
+              | VALSINT
               {
+                if ((parserparamcurr->type & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
 #ifdef SCOTCH_DEBUG_PARSER2
-                if ((parserparamcurr->dataofft - parserparamcurr->database + sizeof (INT)) > sizeof (StratNodeMethodData)) {
-                  errorPrint ("stratParserParse: internal error (3)");
-                  YYABORT;
-                }
+                  if ((parserparamcurr->dataofft - parserparamcurr->database + sizeof (INT)) > sizeof (StratNodeMethodData)) {
+                    errorPrint ("stratParserParse: internal error (3)");
+                    YYABORT;
+                  }
 #endif /* SCOTCH_DEBUG_PARSER2 */
 
-                *((INT *) ((byte *) &parserstratcurr->data.method.data +
-                           (parserparamcurr->dataofft -
-                            parserparamcurr->database))) = (INT) ($1);
+                  *((INT *) ((byte *) &parserstratcurr->data.method.data +
+                             (parserparamcurr->dataofft -
+                              parserparamcurr->database))) = (INT) ($1);
+                }
               }
               | VALSTRING
               {
+                if ((parserparamcurr->type & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
 #ifdef SCOTCH_DEBUG_PARSER2
-                if ((parserparamcurr->dataofft - parserparamcurr->database + strlen ($1) + 1) > sizeof (StratNodeMethodData)) {
-                  errorPrint ("stratParserParse: internal error (4)");
-                  YYABORT;
-                }
+                  if ((parserparamcurr->dataofft - parserparamcurr->database + strlen ($1) + 1) > sizeof (StratNodeMethodData)) {
+                    errorPrint ("stratParserParse: internal error (4)");
+                    YYABORT;
+                  }
 #endif /* SCOTCH_DEBUG_PARSER2 */
 
-                strcpy ((char *) ((byte *) &parserstratcurr->data.method.data +
-                                  (parserparamcurr->dataofft -
-                                   parserparamcurr->database)),
-                        ($1));
+                  strcpy ((char *) ((byte *) &parserstratcurr->data.method.data +
+                                    (parserparamcurr->dataofft -
+                                     parserparamcurr->database)),
+                          ($1));
+                }
               }
               |
               {
@@ -442,16 +452,18 @@ PARAMVAL      : VALCASE
                 parserstratcurr = ($<SAVE>1).strat; /* Restore current method    */
                 parserparamcurr = ($<SAVE>1).param; /* Restore current parameter */
 
+                if ((parserparamcurr->type & STRATPARAMDEPRECATED) == 0) { /* If parameter is not deprecated */
 #ifdef SCOTCH_DEBUG_PARSER2
-                if ((parserparamcurr->dataofft - parserparamcurr->database + sizeof (Strat *)) > sizeof (StratNodeMethodData)) {
-                  errorPrint ("stratParserParse: internal error (5)");
-                  YYABORT;
-                }
+                  if ((parserparamcurr->dataofft - parserparamcurr->database + sizeof (Strat *)) > sizeof (StratNodeMethodData)) {
+                    errorPrint ("stratParserParse: internal error (5)");
+                    YYABORT;
+                  }
 #endif /* SCOTCH_DEBUG_PARSER2 */
 
-                *((Strat **) ((byte *) &parserstratcurr->data.method.data +
-                              (parserparamcurr->dataofft -
-                               parserparamcurr->database))) = ($2);
+                  *((Strat **) ((byte *) &parserstratcurr->data.method.data +
+                                (parserparamcurr->dataofft -
+                                 parserparamcurr->database))) = ($2);
+                }
               }
               | error
               {
@@ -649,7 +661,7 @@ TESTEXPR4     : '(' TESTEXPR1 ')'
               | TESTVAR
               ;
 
-TESTVAL       : VALDOUBLE
+TESTVAL       : VALSDOUBLE
               {
                 StratTest *       test;
 
@@ -664,7 +676,7 @@ TESTVAL       : VALDOUBLE
 
                 ($$) = test;
               }
-              | VALINT
+              | VALSINT
               {
                 StratTest *       test;
 
@@ -720,6 +732,20 @@ TESTVAR       : PARAMNAME
 
                 ($$) = test;
               }
+              ;
+
+VALSDOUBLE    : TESTEXPR1OP VALDOUBLE
+              {
+                ($$) = (($1) == STRATTESTSUB) ? - ($2) : ($2);
+              }
+              | VALDOUBLE
+              ;
+
+VALSINT       : TESTEXPR1OP VALINT
+              {
+                ($$) = (($1) == STRATTESTSUB) ? - ($2) : ($2);
+              }
+              | VALINT
               ;
 
 %%

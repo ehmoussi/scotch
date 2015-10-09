@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2011-2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -49,7 +49,9 @@
 /**   DATES      : # Version 5.0  : from : 09 jan 2007     **/
 /**                                 to     10 sep 2007     **/
 /**                # Version 5.1  : from : 29 oct 2007     **/
-/**                                 to     09 nov 2008     **/
+/**                                 to     27 mar 2011     **/
+/**                # Version 6.0  : from : 07 nov 2011     **/
+/**                                 to     08 aug 2013     **/
 /**                                                        **/
 /************************************************************/
 
@@ -59,6 +61,10 @@
 
 #define BGRAPH_BIPART_DF
 
+#ifdef SCOTCH_PTHREAD
+#define BGRAPHBIPARTDFTHREAD
+#endif /* SCOTCH_PTHREAD */
+
 #include "module.h"
 #include "common.h"
 #include "graph.h"
@@ -66,12 +72,100 @@
 #include "bgraph.h"
 #include "bgraph_bipart_df.h"
 
-/*
-**  The static variables.
-*/
+/************************************/
+/*                                  */
+/* The threaded reduction routines. */
+/*                                  */
+/************************************/
 
-static const Gnum           bgraphbipartdfloadzero = 0;
-static const Gnum           bgraphbipartdfloadone  = 1;
+#ifdef BGRAPHBIPARTDFTHREAD
+
+static
+void
+bgraphBipartDfReduceVanc (
+BgraphBipartDfThread * restrict const tlocptr,    /* Pointer to local thread */
+void * restrict const                 vlocptr,    /* Pointer to local value  */
+void * restrict const                 vremptr)    /* Pointer to remote value */
+{
+  BgraphBipartDfThread * restrict const tremptr = (BgraphBipartDfThread *) vremptr;
+
+  tlocptr->vanctab[0] += tremptr->vanctab[0];     /* Accumulate external gains */
+  tlocptr->vanctab[1] += tremptr->vanctab[1];
+}
+
+static
+void
+bgraphBipartDfReduceVeex (
+BgraphBipartDfThread * restrict const tlocptr,    /* Pointer to local thread */
+void * restrict const                 vlocptr,    /* Pointer to local value  */
+void * restrict const                 vremptr)    /* Pointer to remote value */
+{
+  BgraphBipartDfThread * restrict const tremptr = (BgraphBipartDfThread *) vremptr;
+
+  tlocptr->veexsum  += tremptr->veexsum;          /* Accumulate external gains */
+  tlocptr->veexsum1 += tremptr->veexsum1;
+}
+
+#endif /* BGRAPHBIPARTDFTHREAD */
+
+/********************************/
+/*                              */
+/* The sequential loop routine. */
+/*                              */
+/********************************/
+
+#define BGRAPHBIPARTDFLOOPNAME      bgraphBipartDfSeq
+#include "bgraph_bipart_df_loop.c"
+#undef BGRAPHBIPARTDFLOOPNAME
+
+/******************************/
+/*                            */
+/* The threaded loop routine. */
+/*                            */
+/******************************/
+
+#ifdef BGRAPHBIPARTDFTHREAD
+
+#define BGRAPHBIPARTDFLOOPTHREAD
+#define BGRAPHBIPARTDFLOOPNAME      bgraphBipartDfThr
+#include "bgraph_bipart_df_loop.c"
+#undef BGRAPHBIPARTDFLOOPNAME
+#undef BGRAPHMAPARTDFLOOPTHREAD
+
+#endif /* BGRAPHBIPARTDFTHREAD */
+
+/******************************/
+/*                            */
+/* The threaded join routine. */
+/*                            */
+/******************************/
+
+#ifdef BGRAPHBIPARTDFTHREAD
+
+int
+bgraphBipartDfJoin (
+BgraphBipartDfThread *  tlocptr,
+BgraphBipartDfThread *  tremptr)
+{
+  BgraphBipartDfData * restrict const loopptr = (BgraphBipartDfData *) tlocptr->thrddat.grouptr;
+  Bgraph * restrict const             grafptr = loopptr->grafptr;
+  Gnum * restrict const               frontab = grafptr->frontab;
+  Gnum                                fronnbr;
+
+  fronnbr = tremptr->fronnnd - (tremptr->vertbas - grafptr->s.baseval);
+  memMov (frontab + tlocptr->fronnnd,             /* Aggregate frontier array; TODO: we should do differently for large number of threads */
+          frontab + (tremptr->vertbas - grafptr->s.baseval), fronnbr * sizeof (Gnum));
+  tlocptr->fronnnd      += fronnbr;               /* Accumulate frontier vertices */
+  tlocptr->compload1    += tremptr->compload1;    /* Accumulate graph properties  */
+  tlocptr->compsize1    += tremptr->compsize1;
+  tlocptr->commloadextn += tremptr->commloadextn;
+  tlocptr->commloadintn += tremptr->commloadintn;
+  tlocptr->commgainextn += tremptr->commgainextn;
+
+  return (0);
+}
+
+#endif /* BGRAPHBIPARTDFTHREAD */
 
 /*****************************/
 /*                           */
@@ -90,226 +184,113 @@ bgraphBipartDf (
 Bgraph * restrict const           grafptr,        /*+ Active graph      +*/
 const BgraphBipartDfParam * const paraptr)        /*+ Method parameters +*/
 {
-  float * restrict      edlstax;                  /* Edge load sum array       */
-  float * restrict      veextax;                  /* External leaks array      */
-  float * restrict      difotax;                  /* Old diffusion value array */
-  float * restrict      difntax;                  /* New diffusion value array */
-  float                 cdifval;
-  float                 cremval;
-  Gnum                  fronnum;
-  Gnum                  compload1;
-  Gnum                  compsize1;
-  Gnum                  commloadintn;
-  Gnum                  commloadextn;
-  Gnum                  commgainextn;
-  Gnum                  veexnbr;
-  float                 veexval;
-  const Gnum * restrict veexbax;
-  Gnum                  veexmsk;
-  float                 veloval;
-  const Gnum * restrict velobax;
-  Gnum                  velomsk;
-  Gnum                  vancval0;                 /* Initial values for both anchors */
-  Gnum                  vancval1;
-  float                 vanctab[2];               /* Value to add to each anchor */
-  Gnum                  vertnum;
-  INT                   passnum;
+  BgraphBipartDfData  loopdat;
+  Gnum                compload0;
+  Gnum                compload1;
+  Gnum                compsize1;
+  Gnum                commloadintn;
+  Gnum                commloadextn;
+  Gnum                commgainextn;
+#ifdef BGRAPHBIPARTDFTHREAD                       /* Threads can be accepted even when SCOTCH_DETERMINISTIC set */
+  int                 thrdnbr;
+#endif /* BGRAPHBIPARTDFTHREAD */
+  Gnum                fronnbr;
 
-  veexnbr = (grafptr->veextax != NULL) ? grafptr->s.vertnbr : 0;
+#ifdef SCOTCH_DEBUG_BGRAPH1
+  if ((grafptr->s.flagval & BGRAPHHASANCHORS) == 0) { /* Method valid only if graph has anchors */
+    errorPrint ("bgraphBipartDf: graph does not have anchors");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_BGRAPH1 */
+
   if (memAllocGroup ((void **) (void *)
-                     &edlstax, (size_t) (grafptr->s.vertnbr * sizeof (float)),
-                     &veextax, (size_t) (veexnbr            * sizeof (float)),
-                     &difotax, (size_t) (grafptr->s.vertnbr * sizeof (float)),
-                     &difntax, (size_t) (grafptr->s.vertnbr * sizeof (float)), NULL) == NULL) {
+                     &loopdat.difotax, (size_t) (grafptr->s.vertnbr * sizeof (float)),
+                     &loopdat.difntax, (size_t) (grafptr->s.vertnbr * sizeof (float)), NULL) == NULL) {
     errorPrint ("bgraphBipartDf: out of memory (1)");
     return     (1);
   }
-  edlstax -= grafptr->s.baseval;                  /* Base access to veextax and diffusion arrays */
-  difotax -= grafptr->s.baseval;
-  difntax -= grafptr->s.baseval;
-  veextax  = (grafptr->veextax != NULL) ? veextax - grafptr->s.baseval : NULL;
 
-  vancval0 = (float) - grafptr->compload0avg;     /* Values to be injected to anchor vertices at every iteration */
-  vancval1 = (float) (grafptr->s.velosum - grafptr->compload0avg);
-  if (grafptr->s.edlotax == NULL) {               /* If graph has no edge weights */
-    Gnum                vertnum;
+  loopdat.grafptr  = grafptr;
+  loopdat.difotax -= grafptr->s.baseval;
+  loopdat.difntax -= grafptr->s.baseval;
+  loopdat.passnbr  = paraptr->passnbr;
 
-    for (vertnum = grafptr->s.baseval; vertnum < grafptr->s.vertnnd; vertnum ++) {
-      difotax[vertnum] = 0.0;
-      edlstax[vertnum] = (float) (grafptr->s.vendtax[vertnum] - grafptr->s.verttax[vertnum]);
-    }
-  }
-  else {                                          /* If graph has edge weights */
-    Gnum                vertnum;
+  compload0 = (paraptr->typeval == BGRAPHBIPARTDFTYPEBAL) /* If balanced parts wanted */
+              ? grafptr->compload0avg             /* Target is average                */
+              : ( (grafptr->compload0 < grafptr->compload0min) ? grafptr->compload0min : /* Else keep load if not off balance */
+                 ((grafptr->compload0 > grafptr->compload0max) ? grafptr->compload0max : grafptr->compload0));
+  loopdat.vanctab[0] = (float) - compload0;       /* Values to be injected to anchor vertices at every iteration                */
+  loopdat.vanctab[1] = (float) (grafptr->s.velosum - compload0)- BGRAPHBIPARTDFEPSILON; /* Slightly tilt value to add to part 1 */
 
-    for (vertnum = grafptr->s.baseval; vertnum < grafptr->s.vertnnd; vertnum ++) {
-      Gnum                edgenum;
-      Gnum                edgennd;
-      Gnum                edlosum;
+#ifdef BGRAPHBIPARTDFTHREAD                       /* Threads can be accepted even when SCOTCH_DETERMINISTIC set */
+  thrdnbr = SCOTCH_PTHREAD_NUMBER;
 
-      for (edgenum = grafptr->s.verttax[vertnum], edgennd = grafptr->s.vendtax[vertnum], edlosum = 0;
-           edgenum < edgennd; edgenum ++)
-        edlosum += grafptr->s.edlotax[edgenum];
+  loopdat.abrtval = 0;                            /* No one wants to abort yet */
 
-      difotax[vertnum] = 0.0;
-      edlstax[vertnum] = (float) edlosum;
-    }
-  }
+  if (thrdnbr > 1) {
+    BgraphBipartDfThread * restrict thrdtab;
+    int                             thrdnum;
+    Gnum                            vertbas;
 
-  if (veextax != NULL) {
-    Gnum                vertnum;
-    Gnum                veexsum;
-    Gnum                veexsum0;
-    float               idodist;                  /* Inverse of domdist */
-
-    idodist = 1.0 / (float) grafptr->domdist;
-    for (vertnum = grafptr->s.baseval, veexsum = veexsum0 = 0;
-         vertnum < grafptr->s.vertnnd; vertnum ++) {
-      Gnum                veexval;
-
-      veexval = grafptr->veextax[vertnum];
-      veexsum  += veexval;                        /* Sum all external gains, positive and negative           */
-      veexsum0 += BGRAPHBIPARTDFGNUMSGNMSK (veexval); /* Sum all negative external gains; superscalar update */
-      veextax[vertnum] = (float) veexval / idodist;
-    }
-    vancval0 += (float) veexsum0;
-    vancval1 += (float) (veexsum - veexsum0);
-  }
-  vancval1 -= BGRAPHBIPARTDFEPSILON;              /* Slightly tilt value to add to part 1 */
-
-  difotax[grafptr->s.vertnnd - 2] = vancval0 / edlstax[grafptr->s.vertnnd - 2]; /* Load anchor vertices for first pass */
-  difotax[grafptr->s.vertnnd - 1] = vancval1 / edlstax[grafptr->s.vertnnd - 1];
-
-  veexval = 0.0F;                                 /* Assume no external gains */
-  veloval = 1.0F;                                 /* Assume no vertex loads   */
-  cdifval = paraptr->cdifval;
-  cremval = paraptr->cremval;
-  for (passnum = 0; passnum < paraptr->passnbr; passnum ++) { /* For all passes */
-    Gnum                vertnum;
-    Gnum                vertnnd;
-    float               vancval;                  /* Value to load vertex with if anchor */
-    float *             difttax;                  /* Temporary swap value                */
-
-    vanctab[0] = vancval0;                        /* Copy anchor values to injection variables */
-    vanctab[1] = vancval1;
-    vancval    = 0.0F;                            /* At first vertices are not anchors */
-    vertnum    = grafptr->s.baseval;
-    vertnnd    = grafptr->s.vertnnd - 2;
-    while (1) {
-      for ( ; vertnum < vertnnd; vertnum ++) {
-        Gnum                edgenum;
-        Gnum                edgennd;
-        float               diffval;
-
-        edgenum = grafptr->s.verttax[vertnum];
-        edgennd = grafptr->s.vendtax[vertnum];
-        diffval = 0.0F;
-        if (grafptr->s.edlotax != NULL)
-          for ( ; edgenum < edgennd; edgenum ++)
-            diffval += difotax[grafptr->s.edgetax[edgenum]] * (float) grafptr->s.edlotax[edgenum];
-        else
-          for ( ; edgenum < edgennd; edgenum ++)
-            diffval += difotax[grafptr->s.edgetax[edgenum]];
-
-        diffval *= cdifval;
-        diffval += difotax[vertnum] * cremval * edlstax[vertnum] + vancval;
-        if (grafptr->s.velotax != NULL)
-          veloval = (float) grafptr->s.velotax[vertnum];
-        if (veextax != NULL) {
-          veexval = veextax[vertnum] * diffval;
-          if (veexval >= 0.0F)                    /* If vertex is already in right part */
-            veexval = 0.0F;                       /* Then it will not be impacted       */
-          else {
-            int                 partval;
-
-            partval = (diffval < 0.0F) ? 0 : 1;   /* Load anchor with load removed from vertex */
-            vanctab[partval] += (float) (2 * partval - 1) * veexval;
-          }
-        }
-        if (diffval >= 0.0F) {
-          diffval -= veloval + veexval;
-          if (diffval <= 0.0F)
-            diffval = +BGRAPHBIPARTDFEPSILON;
-        }
-        else {
-          diffval += veloval + veexval;
-          if (diffval >= 0.0F)
-            diffval = -BGRAPHBIPARTDFEPSILON;
-        }
-        if (isnan (diffval))                      /* If overflow occured (because of avalanche process)                        */
-          goto abort;                             /* Exit main loop without swapping arrays so as to keep last valid iteration */
-
-        difntax[vertnum] = diffval / edlstax[vertnum];
-      }
-      if (vertnum == grafptr->s.vertnnd)          /* If all vertices processed, exit intermediate infinite loop */
-        break;
-
-      vertnnd ++;                                 /* Prepare to go only for one more run      */
-      vancval = vanctab[vertnum - grafptr->s.vertnnd + 2]; /* Load variable with anchor value */
+    if ((thrdtab = memAlloc (thrdnbr * sizeof (BgraphBipartDfThread))) == NULL) {
+      errorPrint ("bgraphBipartDf: out of memory (2)");
+      memFree    (loopdat.difotax + grafptr->s.baseval);
+      return     (1);
     }
 
-    difttax = (float *) difntax;                  /* Swap old and new diffusion arrays          */
-    difntax = (float *) difotax;                  /* Casts to prevent IBM compiler from yelling */
-    difotax = (float *) difttax;
-  }
-abort :                                           /* If overflow occured, resume here */
-
-  for (vertnum = grafptr->s.baseval; vertnum < grafptr->s.vertnnd; vertnum ++) /* Update part according to diffusion state */
-    grafptr->parttax[vertnum] = (difotax[vertnum] <= 0.0F) ? 0 : 1;
-
-  if (grafptr->veextax != NULL) {
-    veexbax = grafptr->veextax;
-    veexmsk = ~((Gnum) 0);
-  }
-  else {
-    veexbax = &bgraphbipartdfloadzero;
-    veexmsk = 0;
-  }
-  if (grafptr->s.velotax != NULL) {
-    velobax = grafptr->s.velotax;
-    velomsk = ~((Gnum) 0);
-  }
-  else {
-    velobax = &bgraphbipartdfloadone;
-    velomsk = 0;
-  }
-
-  for (vertnum = grafptr->s.baseval, fronnum = 0, commloadextn = grafptr->commloadextn0, commgainextn = commloadintn = compload1 = compsize1 = 0;
-       vertnum < grafptr->s.vertnnd; vertnum ++) {
-    Gnum                edgenum;
-    Gnum                partval;
-    Gnum                commload;                 /* Vertex internal communication load */
-
-    partval = (Gnum) grafptr->parttax[vertnum];
-    compsize1    += partval;
-    compload1    += partval * velobax[vertnum & velomsk];
-    commloadextn += partval * veexbax[vertnum & veexmsk];
-    commgainextn += (1 - 2 * partval) * veexbax[vertnum & veexmsk];
-    commload      = 0;
-    if (grafptr->s.edlotax != NULL) {
-      for (edgenum = grafptr->s.verttax[vertnum]; edgenum < grafptr->s.vendtax[vertnum]; edgenum ++) {
-        Gnum                partend;
-
-        partend   = (Gnum) grafptr->parttax[grafptr->s.edgetax[edgenum]];
-        commload += (partval ^ partend) * grafptr->s.edlotax[edgenum];
-      }
+    for (thrdnum = 0, vertbas = grafptr->s.baseval; /* For all threads except the last one */
+         thrdnum < (thrdnbr - 1); thrdnum ++) {
+      thrdtab[thrdnum].vertbas = vertbas;
+      thrdtab[thrdnum].vertnnd = vertbas += DATASIZE ((grafptr->s.vertnbr - 2), thrdnbr, thrdnum); /* Do not count anchors in distribution */
     }
-    else {
-      for (edgenum = grafptr->s.verttax[vertnum]; edgenum < grafptr->s.vendtax[vertnum]; edgenum ++)
-        commload += partval ^ (Gnum) grafptr->parttax[grafptr->s.edgetax[edgenum]];
-    }
-    commloadintn += commload;                     /* Internal loads will be added twice */
-    if (commload != 0)                            /* If end vertex is in the other part */
-      grafptr->frontab[fronnum ++] = vertnum;     /* Then it belongs to the frontier    */
+    thrdtab[thrdnum].vertbas = vertbas;
+    thrdtab[thrdnum].vertnnd = grafptr->s.vertnnd; /* Both anchors will always be on the same thread */
+
+    threadLaunch (&loopdat, thrdtab, sizeof (BgraphBipartDfThread),
+                  (ThreadLaunchStartFunc) bgraphBipartDfThr,
+                  (ThreadLaunchJoinFunc)  bgraphBipartDfJoin, thrdnbr, THREADCANBARRIER | THREADCANREDUCE);
+
+    fronnbr      = thrdtab[0].fronnnd;
+    compload1    = thrdtab[0].compload1;
+    compsize1    = thrdtab[0].compsize1;
+    commloadextn = thrdtab[0].commloadextn;
+    commloadintn = thrdtab[0].commloadintn;
+    commgainextn = thrdtab[0].commgainextn;
+
+    memFree (thrdtab);                            /* Free group leader */
   }
-  grafptr->fronnbr      = fronnum;
+  else
+#endif /* BGRAPHBIPARTDFTHREAD */
+  {
+    BgraphBipartDfThread  thrddat;
+
+    thrddat.thrddat.grouptr = &loopdat;
+    thrddat.vertbas = grafptr->s.baseval;         /* Process all vertices, including both anchors */
+    thrddat.vertnnd = grafptr->s.vertnnd;
+#ifdef BGRAPHBIPARTDFTHREAD
+    loopdat.thrddat.thrdnbr = 1;                  /* Thread is thread 0 of 1 */
+    thrddat.thrddat.thrdnum = 0;
+#endif /* BGRAPHBIPARTDFTHREAD */
+
+    bgraphBipartDfSeq (&thrddat);
+
+    fronnbr      = thrddat.fronnnd;
+    compload1    = thrddat.compload1;
+    compsize1    = thrddat.compsize1;
+    commloadextn = thrddat.commloadextn;
+    commloadintn = thrddat.commloadintn;
+    commgainextn = thrddat.commgainextn;
+  }
+
+  memFree (loopdat.difotax + grafptr->s.baseval); /* Free group leader */
+
+  grafptr->fronnbr      = fronnbr;
   grafptr->compload0    = grafptr->s.velosum - compload1;
   grafptr->compload0dlt = grafptr->compload0 - grafptr->compload0avg;
   grafptr->compsize0    = grafptr->s.vertnbr - compsize1;
-  grafptr->commload     = commloadextn + (commloadintn / 2) * grafptr->domdist;
+  grafptr->commload     = commloadextn + (commloadintn / 2) * grafptr->domndist;
   grafptr->commgainextn = commgainextn;
-
-  memFree (edlstax + grafptr->s.baseval);
+  grafptr->bbalval      = (double) ((grafptr->compload0dlt < 0) ? (- grafptr->compload0dlt) : grafptr->compload0dlt) / (double) grafptr->compload0avg;
 
 #ifdef SCOTCH_DEBUG_BGRAPH2
   if (bgraphCheck (grafptr) != 0) {

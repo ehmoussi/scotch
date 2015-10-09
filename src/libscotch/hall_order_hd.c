@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -48,6 +48,8 @@
 /**                                 to   : 05 jan 1999     **/
 /**                # Version 4.0  : from : 14 jan 2003     **/
 /**                                 to   : 29 aug 2007     **/
+/**                # Version 6.0  : from : 08 mar 2012     **/
+/**                                 to   : 08 mar 2012     **/
 /**                                                        **/
 /**   NOTES      : # This module contains pieces of code   **/
 /**                  that belong to other people; see      **/
@@ -120,9 +122,9 @@
 
 void
 hallOrderHdHalmd (
-Gnum                n,                            /* Matrix order                             */
-Gnum                nbelts,                       /* Number of elements                       */
-Gnum                iwlen,                        /* Length of array iw                       */
+const Gnum          n,                            /* Matrix order                             */
+const Gnum          nbelts,                       /* Number of elements                       */
+const Gnum          iwlen,                        /* Length of array iw                       */
 Gnum * restrict     pe,                           /* Array of indexes in iw of start of row i */
 Gnum                pfree,                        /* Useful size in iw                        */
 Gnum * restrict     len,                          /* Array of lengths of adjacency lists      */
@@ -436,9 +438,10 @@ Gnum * restrict     w)                            /* Flag array                 
     }
   }
 
-/* Temporary Patch 8/12/03 <PA> TODO REMOVE */
-  if (nbelts != nel)
+#ifdef SCOTCH_DEBUG_ORDER2
+  if (nbelts != nel)                              /* Temporary Patch 8/12/03 <PA> */
     printf ("error 8Dec2003\n");
+#endif /* SCOTCH_DEBUG_ORDER2 */
 
   nreal = n - nbflag;
 
@@ -599,7 +602,7 @@ Gnum * restrict     w)                            /* Flag array                 
             degme +=   nvi;
             nv[i]  = - nvi;
             iw[pfree] = i;
-            (pfree) ++;
+            pfree ++;
 
             if (degree[i] <= n) {
               ilast = last[i];

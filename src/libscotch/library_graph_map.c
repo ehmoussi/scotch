@@ -1,4 +1,4 @@
-/* Copyright 2004,2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : library_graph_map.c                     **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module is the API for the mapping  **/
 /**                routines of the libSCOTCH library.      **/
@@ -47,7 +48,9 @@
 /**                # Version 4.0  : from : 13 jan 2004     **/
 /**                                 to     13 nov 2005     **/
 /**                # Version 5.1  : from : 29 oct 2007     **/
-/**                                 to     14 aug 2010     **/
+/**                                 to     24 jul 2011     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     29 oct 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -62,6 +65,7 @@
 #include "parser.h"
 #include "graph.h"
 #include "arch.h"
+#include "arch_dist.h"
 #include "mapping.h"
 #include "kgraph.h"
 #include "kgraph_map_st.h"
@@ -90,19 +94,25 @@ SCOTCH_Mapping * const      mappptr,              /*+ Mapping structure to initi
 const SCOTCH_Arch * const   archptr,              /*+ Target architecture used to map +*/
 SCOTCH_Num * const          parttab)              /*+ Mapping array                   +*/
 {
-  LibMapping * restrict srcmappptr;
+  LibMapping * restrict lmapptr;
 
-#ifdef SCOTCH_DEBUG_LIBRARY1
-  if (sizeof (SCOTCH_Mapping) < sizeof (LibMapping)) {
-    errorPrint ("SCOTCH_graphMapInit: internal error");
-    return     (1);
+  lmapptr = (LibMapping *) mappptr;
+
+  lmapptr->flagval = LIBMAPPINGNONE;              /* No options set */
+  lmapptr->grafptr = (Graph *) grafptr;
+  lmapptr->archptr = (Arch *)  archptr;
+  if (parttab == NULL) {
+    if ((lmapptr->parttab = (Gnum *) memAlloc (lmapptr->grafptr->vertnbr * sizeof (Gnum))) == NULL) {
+      errorPrint ("SCOTCH_graphMapInit: out of memory");
+      return     (1);
+    }
+    memSet (lmapptr->parttab, 0, lmapptr->grafptr->vertnbr * sizeof (Anum)); /* All vertices mapped to first domain    */
+    lmapptr->flagval |= LIBMAPPINGFREEPART;       /* The user did not provided the partition array, so we will free it */
   }
-#endif /* SCOTCH_DEBUG_LIBRARY1 */
+  else
+    lmapptr->parttab = (Gnum *) parttab;
 
-  srcmappptr = (LibMapping *) mappptr;
-  srcmappptr->parttax = (parttab != NULL) ? (parttab - ((Graph *) grafptr)->baseval) : parttab;
-
-  return (mapInit (&srcmappptr->m, ((Graph *) grafptr)->baseval, ((Graph *) grafptr)->vertnbr, (Arch *) archptr));
+  return (0);
 }
 
 /*+ This routine frees an API mapping.
@@ -115,55 +125,162 @@ SCOTCH_graphMapExit (
 const SCOTCH_Graph * const  grafptr,
 SCOTCH_Mapping * const      mappptr)
 {
-  mapExit (&((LibMapping *) mappptr)->m);
+  LibMapping * restrict lmapptr;
+
+  lmapptr = (LibMapping *) mappptr;
+  
+  if (((lmapptr->flagval & LIBMAPPINGFREEPART) != 0) && /* If parttab must be freed */
+      (lmapptr->parttab != NULL))                 /* And if exists                  */
+    memFree (lmapptr->parttab);                   /* Free it                        */
+
+  memSet (lmapptr, 0, sizeof (LibMapping));
 }
 
-/*+ This routine saves the contents of
-*** the given mapping to the given stream.
+/*+ This routine computes a mapping or a
+*** remapping, with or without fixed
+*** vertices, of the API mapping
+*** structures given in input, with
+*** respect to the given strategy.
 *** It returns:
 *** - 0   : on success.
 *** - !0  : on error.
 +*/
 
+static
 int
-SCOTCH_graphMapLoad (
-const SCOTCH_Graph * const    grafptr,            /*+ Graph to order  +*/
-const SCOTCH_Mapping * const  mappptr,            /*+ Mapping to save +*/
-FILE * const                  stream)             /*+ Output stream   +*/
+graphMapCompute2 (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to order                         +*/
+SCOTCH_Mapping * const      mappptr,              /*+ Mapping to compute                     +*/
+SCOTCH_Mapping * const      mapoptr,              /*+ Old mapping                            +*/
+const double                emraval,              /*+ Edge migration ratio                   +*/ 
+const SCOTCH_Num *          vmlotab,              /*+ Vertex migration cost array            +*/
+const Gnum                  vfixnbr,              /*+ Number of fixed vertices in part array +*/
+SCOTCH_Strat * const        straptr)              /*+ Mapping strategy                       +*/
 {
+  Kgraph                mapgrafdat;               /* Effective mapping graph              */
+  const Strat *         mapstraptr;               /* Pointer to mapping strategy          */
   LibMapping * restrict lmapptr;
+  Anum *                pfixtax;
+  Gnum                  baseval;
+  Anum *                parttax;                  /* Partition array                      */
+  Anum *                parotax;                  /* Old partition array                  */
+  Gnum                  crloval;                  /* Coefficient load for regular edges   */
+  Gnum                  cmloval;                  /* Coefficient load for migration edges */
+  const Gnum *          vmlotax;                  /* Vertex migration cost array          */
+  Gnum                  vertnum;
+  Gnum                  vertnnd;
+  Gnum                  vertnbr;
   int                   o;
 
   lmapptr = (LibMapping *) mappptr;
-  if ((o = mapLoad (&lmapptr->m, ((Graph *) grafptr)->vlbltax, stream)) != 0)
-    return (o);
+#ifdef SCOTCH_DEBUG_LIBRARY1
+  if ((Graph *) grafptr != lmapptr->grafptr) {
+    errorPrint ("graphMapCompute2: output mapping does not correspond to input graph");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_LIBRARY1 */
+#ifdef SCOTCH_DEBUG_LIBRARY2
+  if (graphCheck ((Graph *) grafptr) != 0) {      /* Vertex loads can be 0 if we have fixed vertices */
+    errorPrint ("graphMapCompute2: invalid input graph");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_LIBRARY2 */
 
-  if (lmapptr->parttax != NULL) {                 /* Propagate mapping data to user partition array */
-    Gnum                vertnum;
-    Gnum                vertnnd;
+  if (*((Strat **) straptr) == NULL) {            /* Set default mapping strategy if necessary */
+    ArchDom             domnorg;
 
-    for (vertnum = lmapptr->m.baseval, vertnnd = vertnum + lmapptr->m.vertnbr;
-         vertnum < vertnnd; vertnum ++)
-      lmapptr->parttax[vertnum] = archDomNum (&lmapptr->m.archdat, &lmapptr->m.domntab[lmapptr->m.parttax[vertnum]]);
+    archDomFrst (lmapptr->archptr, &domnorg);
+    SCOTCH_stratGraphMapBuild (straptr, SCOTCH_STRATDEFAULT, archDomSize (lmapptr->archptr, &domnorg), 0.01);
   }
 
-  return (0);
-}
+  mapstraptr = *((Strat **) straptr);
+#ifdef SCOTCH_DEBUG_LIBRARY1
+  if (mapstraptr->tabl != &kgraphmapststratab) {
+    errorPrint ("graphMapCompute2: not a graph mapping strategy");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_LIBRARY1 */
 
-/*+ This routine saves the contents of
-*** the given mapping to the given stream.
-*** It returns:
-*** - 0   : on success.
-*** - !0  : on error.
-+*/
+  baseval = lmapptr->grafptr->baseval;
+  vertnbr = lmapptr->grafptr->vertnbr;
 
-int
-SCOTCH_graphMapSave (
-const SCOTCH_Graph * const    grafptr,            /*+ Graph to order  +*/
-const SCOTCH_Mapping * const  mappptr,            /*+ Mapping to save +*/
-FILE * const                  stream)             /*+ Output stream   +*/
-{
-  return (mapSave (&((LibMapping *) mappptr)->m, ((Graph *) grafptr)->vlbltax, stream));
+  if (vfixnbr != 0) {                             /* We have fixed vertices */
+#ifdef SCOTCH_DEBUG_LIBRARY1
+    ArchDom                     domndat;
+    Gnum                        vertnum;
+
+    if (lmapptr->parttab == NULL) {               /* We must have fixed vertex information */
+      errorPrint ("graphMapCompute2: missing output mapping part array");
+      return     (1);
+    }
+    for (vertnum = 0; vertnum < vertnbr; vertnum ++) {
+      if ((lmapptr->parttab[vertnum] >= 0) &&
+          (archDomTerm (lmapptr->archptr, &domndat, lmapptr->parttab[vertnum]) != 0)) {
+        errorPrint ("graphMapCompute2: invalid fixed partition");
+        return     (1);
+      }
+    }
+#endif /* SCOTCH_DEBUG_LIBRARY1 */
+    pfixtax = lmapptr->parttab - baseval;
+  }
+  else
+    pfixtax = NULL;
+
+  if (mapoptr != NULL) {                          /* We are doing a repartitioning */
+    const LibMapping * restrict lmaoptr;
+    Gnum                        numeval;
+    Gnum                        denoval;
+#ifdef SCOTCH_DEBUG_LIBRARY1
+    ArchDom                     domndat;
+    Gnum                        vertnum;
+#endif /* SCOTCH_DEBUG_LIBRARY1 */
+
+    lmaoptr = (LibMapping *) mapoptr;
+#ifdef SCOTCH_DEBUG_LIBRARY1
+    if (lmapptr->grafptr != lmaoptr->grafptr) {
+      errorPrint ("graphMapCompute2: output and old mappings must correspond to same graph");
+      return     (1);
+    }
+    if (lmapptr->archptr != lmaoptr->archptr) {
+      errorPrint ("graphMapCompute2: output and old mappings must correspond to same architecture");
+      return     (1);
+    }
+    for (vertnum = 0; vertnum < vertnbr; vertnum ++) {
+      if ((lmaoptr->parttab[vertnum] >= 0) &&
+          (archDomTerm (lmapptr->archptr, &domndat, lmaoptr->parttab[vertnum]) != 0)) {
+        errorPrint ("graphMapCompute2: invalid old partition");
+        return     (1);
+      }
+    }
+#endif /* SCOTCH_DEBUG_LIBRARY1 */
+    parotax = lmaoptr->parttab - baseval;
+    vmlotax = (vmlotab != NULL) ? vmlotab - baseval : NULL;
+    numeval = (INT) ((emraval * 100.0) + 0.5);
+    denoval = intGcd (numeval, 100);
+    cmloval = numeval / denoval;
+    crloval = 100     / denoval;
+  }
+  else {
+    parotax = NULL;
+    vmlotax = NULL;
+    cmloval =
+    crloval = 1;
+  }
+
+  intRandInit ();                                 /* Check that random number generator is initialized */
+
+  if (kgraphInit (&mapgrafdat, (Graph *) grafptr, lmapptr->archptr, NULL, vfixnbr, pfixtax, parotax, crloval, cmloval, vmlotax) != 0)
+    return (1);
+
+  o = 0;
+  if (mapgrafdat.vfixnbr < mapgrafdat.s.vertnbr) { /* Perform mapping if not all fixed vertices */
+    o = kgraphMapSt (&mapgrafdat, mapstraptr);
+    mapTerm (&mapgrafdat.m, lmapptr->parttab - baseval); /* Propagate mapping result to part array */
+  }
+
+  kgraphExit (&mapgrafdat);
+
+  return (o);
 }
 
 /*+ This routine computes a mapping
@@ -178,56 +295,80 @@ int
 SCOTCH_graphMapCompute (
 SCOTCH_Graph * const        grafptr,              /*+ Graph to order     +*/
 SCOTCH_Mapping * const      mappptr,              /*+ Mapping to compute +*/
-SCOTCH_Strat * const        stratptr)             /*+ Mapping strategy   +*/
+SCOTCH_Strat * const        straptr)              /*+ Mapping strategy   +*/
 {
-  Kgraph                mapgrafdat;               /* Effective mapping graph     */
-  const Strat *         mapstratptr;              /* Pointer to mapping strategy */
-  LibMapping * restrict lmapptr;
-  int                   o;
+  return (graphMapCompute2 (grafptr, mappptr, NULL, 1, NULL, 0, straptr));
+}
 
-#ifdef SCOTCH_DEBUG_GRAPH2
-  if (graphCheck ((Graph *) grafptr) != 0) {
-    errorPrint ("SCOTCH_graphMapCompute: invalid input graph");
-    return     (1);
+/*+ This routine computes a mapping
+*** with fixed vertices of the API
+*** mapping structure with respect
+*** to the given strategy.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphMapFixedCompute (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to order     +*/
+SCOTCH_Mapping * const      mappptr,              /*+ Mapping to compute +*/
+SCOTCH_Strat * const        straptr)              /*+ Mapping strategy   +*/
+{
+  return (SCOTCH_graphRemapFixedCompute (grafptr, mappptr, NULL, 1, NULL, straptr));
+}
+
+/*+ This routine computes a remapping
+*** of the API mapping structure with
+*** respect to the given strategy.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphRemapCompute (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to order              +*/
+SCOTCH_Mapping * const      mappptr,              /*+ Mapping to compute          +*/
+SCOTCH_Mapping * const      mapoptr,              /*+ Old mapping                 +*/
+const double                emraval,              /*+ Edge migration ratio        +*/ 
+const SCOTCH_Num *          vmlotab,              /*+ Vertex migration cost array +*/
+SCOTCH_Strat * const        straptr)              /*+ Mapping strategy            +*/
+{
+  return (graphMapCompute2 (grafptr, mappptr, mapoptr, emraval, vmlotab, 0, straptr));
+}
+
+/*+ This routine computes a remapping
+*** with fixed vertices of the API
+*** mapping structure with respect
+*** to the given strategy.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphRemapFixedCompute (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to order              +*/
+SCOTCH_Mapping * const      mappptr,              /*+ Mapping to compute          +*/
+SCOTCH_Mapping * const      mapoptr,              /*+ Old mapping                 +*/
+const double                emraval,              /*+ Edge migration ratio        +*/ 
+const SCOTCH_Num *          vmlotab,              /*+ Vertex migration cost array +*/
+SCOTCH_Strat * const        straptr)              /*+ Mapping strategy            +*/
+{
+  Gnum                vfixnbr;
+  Gnum                vertnbr;
+  Gnum                vertnum;
+
+  const Anum * restrict const pfixtab = ((LibMapping *) mappptr)->parttab;
+
+  for (vertnum = 0, vertnbr = ((Graph *) grafptr)->vertnbr, vfixnbr = 0; /* Compute number of fixed vertices */
+       vertnum < vertnbr; vertnum ++) {
+    if (pfixtab[vertnum] != ~0)
+      vfixnbr ++;
   }
-#endif /* SCOTCH_DEBUG_GRAPH2 */
 
-  lmapptr = (LibMapping *) mappptr;
-  if (*((Strat **) stratptr) == NULL) {           /* Set default mapping strategy if necessary */
-    ArchDom             archdomnorg;
-
-    archDomFrst (&lmapptr->m.archdat, &archdomnorg);
-    SCOTCH_stratGraphMapBuild (stratptr, SCOTCH_STRATQUALITY, archDomSize (&lmapptr->m.archdat, &archdomnorg), 0.01);
-  }
-
-  mapstratptr = *((Strat **) stratptr);
-  if (mapstratptr->tabl != &kgraphmapststratab) {
-    errorPrint ("SCOTCH_graphMapCompute: not a graph mapping strategy");
-    return     (1);
-  }
-
-  if (kgraphInit (&mapgrafdat, (Graph *) grafptr, &lmapptr->m) != 0)
-    return (1);
-  o = kgraphMapSt (&mapgrafdat, mapstratptr);     /* Perform mapping */
-
-  lmapptr->m.domnmax = mapgrafdat.m.domnmax;      /* Do not free the mapping, as it has been cloned */
-  lmapptr->m.domnnbr = mapgrafdat.m.domnnbr;
-  lmapptr->m.domntab = mapgrafdat.m.domntab;      /* Update pointer to domntab in case it has changed */
-
-  mapgrafdat.m.parttax = NULL;                    /* Prevent mapping arrays from being freed by graph */
-  mapgrafdat.m.domntab = NULL;
-  kgraphExit (&mapgrafdat);
-
-  if (lmapptr->parttax != NULL) {                 /* Propagate mapping data to user partition array */
-    Gnum                vertnum;
-    Gnum                vertnnd;
-
-    for (vertnum = lmapptr->m.baseval, vertnnd = vertnum + lmapptr->m.vertnbr;
-         vertnum < vertnnd; vertnum ++)
-      lmapptr->parttax[vertnum] = archDomNum (&lmapptr->m.archdat, &lmapptr->m.domntab[lmapptr->m.parttax[vertnum]]);
-  }
-
-  return (o);
+  return (graphMapCompute2 (grafptr, mappptr, mapoptr, emraval, vmlotab, vfixnbr, straptr));
 }
 
 /*+ This routine computes a mapping of the
@@ -243,15 +384,107 @@ int
 SCOTCH_graphMap (
 SCOTCH_Graph * const        grafptr,              /*+ Graph to map        +*/
 const SCOTCH_Arch * const   archptr,              /*+ Target architecture +*/
-SCOTCH_Strat * const        stratptr,             /*+ Mapping strategy    +*/
-SCOTCH_Num * const          maptab)               /*+ Mapping array       +*/
+SCOTCH_Strat * const        straptr,              /*+ Mapping strategy    +*/
+SCOTCH_Num * const          parttab)              /*+ Partition array     +*/
 {
-  SCOTCH_Mapping      mapdat;
+  SCOTCH_Mapping      mappdat;
   int                 o;
 
-  SCOTCH_graphMapInit (grafptr, &mapdat, archptr, maptab);
-  o = SCOTCH_graphMapCompute (grafptr, &mapdat, stratptr);
-  SCOTCH_graphMapExit (grafptr, &mapdat);
+  SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab);
+  o = SCOTCH_graphMapCompute (grafptr, &mappdat, straptr);
+  SCOTCH_graphMapExit (grafptr, &mappdat);
+
+  return (o);
+}
+
+/*+ This routine computes a mapping of the
+*** given graph structure onto the given
+*** target architecture with respect to the
+*** given strategy and the fixed vertices in
+*** maptab.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphMapFixed (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to map        +*/
+const SCOTCH_Arch * const   archptr,              /*+ Target architecture +*/
+SCOTCH_Strat * const        straptr,              /*+ Mapping strategy    +*/
+SCOTCH_Num * const          parttab)              /*+ Partition array     +*/
+{
+  SCOTCH_Mapping      mappdat;
+  int                 o;
+
+  SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab);
+  o = SCOTCH_graphMapFixedCompute (grafptr, &mappdat, straptr);
+  SCOTCH_graphMapExit (grafptr, &mappdat);
+
+  return (o);
+}
+
+/*+ This routine computes a remapping of the
+*** given graph structure onto the given
+*** target architecture with respect to the
+*** given strategy.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphRemap (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to map                +*/
+const SCOTCH_Arch * const   archptr,              /*+ Target architecture         +*/
+SCOTCH_Num * const          parotab,              /*+ Old partition array         +*/
+const double                emraval,              /*+ Edge migration ratio        +*/
+const SCOTCH_Num *          vmlotab,              /*+ Vertex migration cost array +*/
+SCOTCH_Strat * const        straptr,              /*+ Mapping strategy            +*/
+SCOTCH_Num * const          parttab)              /*+ Partition array             +*/
+{
+  SCOTCH_Mapping      mappdat;
+  SCOTCH_Mapping      mapodat;
+  int                 o;
+
+  SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab);
+  SCOTCH_graphMapInit (grafptr, &mapodat, archptr, parotab);
+  o = SCOTCH_graphRemapCompute (grafptr, &mappdat, &mapodat, emraval, vmlotab, straptr);
+  SCOTCH_graphMapExit (grafptr, &mapodat);
+  SCOTCH_graphMapExit (grafptr, &mappdat);
+
+  return (o);
+}
+
+/*+ This routine computes a remapping of the
+*** given graph structure onto the given
+*** target architecture with respect to the
+*** given strategy and the fixed vertices in
+*** maptab.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphRemapFixed (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to map                +*/
+const SCOTCH_Arch * const   archptr,              /*+ Target architecture         +*/
+SCOTCH_Num * const          parotab,              /*+ Old partition array         +*/
+const double                emraval,              /*+ Edge migration ratio        +*/
+const SCOTCH_Num *          vmlotab,              /*+ Vertex migration cost array +*/
+SCOTCH_Strat * const        straptr,              /*+ Mapping strategy            +*/
+SCOTCH_Num * const          parttab)              /*+ Partition array             +*/
+{
+  SCOTCH_Mapping      mappdat;
+  SCOTCH_Mapping      mapodat;
+  int                 o;
+
+  SCOTCH_graphMapInit (grafptr, &mappdat, archptr, parttab);
+  SCOTCH_graphMapInit (grafptr, &mapodat, archptr, parotab);
+  o = SCOTCH_graphRemapFixedCompute (grafptr, &mappdat, &mapodat, emraval, vmlotab, straptr);
+  SCOTCH_graphMapExit (grafptr, &mapodat);
+  SCOTCH_graphMapExit (grafptr, &mappdat);
 
   return (o);
 }
@@ -268,16 +501,102 @@ int
 SCOTCH_graphPart (
 SCOTCH_Graph * const        grafptr,              /*+ Graph to map     +*/
 const SCOTCH_Num            partnbr,              /*+ Number of parts  +*/
-SCOTCH_Strat * const        stratptr,             /*+ Mapping strategy +*/
-SCOTCH_Num * const          maptab)               /*+ Mapping array    +*/
+SCOTCH_Strat * const        straptr,              /*+ Mapping strategy +*/
+SCOTCH_Num * const          parttab)              /*+ Partition array  +*/
 {
   SCOTCH_Arch         archdat;
   int                 o;
 
   SCOTCH_archInit  (&archdat);
   SCOTCH_archCmplt (&archdat, partnbr);
-  o = SCOTCH_graphMap (grafptr, &archdat, stratptr, maptab);
-  SCOTCH_archExit  (&archdat);
+  o = SCOTCH_graphMap (grafptr, &archdat, straptr, parttab);
+  SCOTCH_archExit (&archdat);
+
+  return (o);
+}
+
+/*+ This routine computes a partition of
+*** the given graph structure with respect
+*** to the given strategy and the fixed
+*** vertices in maptab.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphPartFixed (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to map     +*/
+const SCOTCH_Num            partnbr,              /*+ Number of parts  +*/
+SCOTCH_Strat * const        straptr,              /*+ Mapping strategy +*/
+SCOTCH_Num * const          parttab)              /*+ Partition array  +*/
+{
+  SCOTCH_Arch         archdat;
+  int                 o;
+
+  SCOTCH_archInit  (&archdat);
+  SCOTCH_archCmplt (&archdat, partnbr);
+  o = SCOTCH_graphMapFixed (grafptr, &archdat, straptr, parttab);
+  SCOTCH_archExit (&archdat);
+
+  return (o);
+}
+
+/*+ This routine computes a repartitionning
+*** of the given graph structure with
+*** respect to the given strategy.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphRepart (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to map                +*/
+const SCOTCH_Num            partnbr,              /*+ Number of parts             +*/
+SCOTCH_Num * const          parotab,              /*+ Old partition array         +*/
+const double                emraval,              /*+ Edge migration ratio        +*/
+const SCOTCH_Num * const    vmlotab,              /*+ Vertex migration cost array +*/
+SCOTCH_Strat * const        straptr,              /*+ Mapping strategy            +*/
+SCOTCH_Num * const          parttab)              /*+ Partition array             +*/
+{
+  SCOTCH_Arch         archdat;
+  int                 o;
+
+  SCOTCH_archInit  (&archdat);
+  SCOTCH_archCmplt (&archdat, partnbr);
+  o = SCOTCH_graphRemap (grafptr, &archdat, parotab, emraval, vmlotab, straptr, parttab);
+  SCOTCH_archExit (&archdat);
+
+  return (o);
+}
+
+/*+ This routine computes a repartitionning
+*** of the given graph structure with
+*** respect to the given strategy and the
+*** fixed vertices in maptab.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphRepartFixed (
+SCOTCH_Graph * const        grafptr,              /*+ Graph to map                +*/
+const SCOTCH_Num            partnbr,              /*+ Number of parts             +*/
+SCOTCH_Num * const          parotab,              /*+ Old partition array         +*/
+const double                emraval,              /*+ Edge migration ratio        +*/
+const SCOTCH_Num *          vmlotab,              /*+ Vertex migration cost array +*/
+SCOTCH_Strat * const        straptr,              /*+ Mapping strategy            +*/
+SCOTCH_Num * const          parttab)              /*+ Partition array             +*/
+{
+  SCOTCH_Arch         archdat;
+  int                 o;
+
+  SCOTCH_archInit  (&archdat);
+  SCOTCH_archCmplt (&archdat, partnbr);
+  o = SCOTCH_graphRemapFixed (grafptr, &archdat, parotab, emraval, vmlotab, straptr, parttab);
+  SCOTCH_archExit (&archdat);
 
   return (o);
 }
@@ -291,13 +610,13 @@ SCOTCH_Num * const          maptab)               /*+ Mapping array    +*/
 
 int
 SCOTCH_stratGraphMap (
-SCOTCH_Strat * const        stratptr,
+SCOTCH_Strat * const        straptr,
 const char * const          string)
 {
-  if (*((Strat **) stratptr) != NULL)
-    stratExit (*((Strat **) stratptr));
+  if (*((Strat **) straptr) != NULL)
+    stratExit (*((Strat **) straptr));
 
-  if ((*((Strat **) stratptr) = stratInit (&kgraphmapststratab, string)) == NULL) {
+  if ((*((Strat **) straptr) = stratInit (&kgraphmapststratab, string)) == NULL) {
     errorPrint ("SCOTCH_stratGraphMap: error in mapping strategy");
     return     (1);
   }
@@ -314,27 +633,95 @@ const char * const          string)
 
 int
 SCOTCH_stratGraphMapBuild (
-SCOTCH_Strat * const        stratptr,             /*+ Strategy to create              +*/
+SCOTCH_Strat * const        straptr,              /*+ Strategy to create              +*/
 const SCOTCH_Num            flagval,              /*+ Desired characteristics         +*/
 const SCOTCH_Num            partnbr,              /*+ Number of expected parts/size   +*/
-const double                balrat)               /*+ Desired imbalance ratio         +*/
+const double                kbalval)              /*+ Desired imbalance ratio         +*/
 {
   char                bufftab[8192];              /* Should be enough */
   char                bbaltab[64];
-  double              bbalval;
+  char                kbaltab[64];
+  char                kmovtab[64];
+  char                mvrttab[64];
   Gunum               parttmp;                    /* "Unsigned" so that ">>" will always insert "0"s */
-  int                 blogval;
-  double              blogtmp;
+  const char *        difkptr;
+  const char *        difsptr;
+  const char *        exasptr;
+  const char *        exaxptr;
+
+  sprintf (bbaltab, "%lf", kbalval);
+  sprintf (kbaltab, "%lf", kbalval);
+  sprintf (kmovtab, GNUMSTRING, (Gnum) (((flagval & SCOTCH_STRATQUALITY) != 0) ? 200 : 80));
+  sprintf (mvrttab, GNUMSTRING, (Gnum) (MAX ((20 * partnbr), 10000)));
+
+  strcpy (bufftab, ((flagval & SCOTCH_STRATRECURSIVE) != 0)
+          ? "<RECU>"                              /* Use only the recursive bipartitioning framework */
+          : "m{vert=<MVRT>,low=<RECU>,asc=b{bnd=<DIFK>f{bal=<KBAL>,move=<KMOV>},org=f{bal=<KBAL>,move=<KMOV>}}}<EXAX>");
+  stringSubst (bufftab, "<RECU>", "r{job=t,map=t,poli=S,bal=<KBAL>,sep=<BSEP><EXAS>}");
+  stringSubst (bufftab, "<BSEP>", ((flagval & SCOTCH_STRATQUALITY) != 0) ?  "<BSEQ>|<BSEQ>|<BSEQ>" :  "<BSEQ>|<BSEQ>");
+  stringSubst (bufftab, "<BSEQ>", "m{vert=120,low=h{pass=10}f{bal=<BBAL>,move=120},asc=b{bnd=f{bal=<BBAL>,move=120},org=f{bal=<BBAL>,move=120}}}");
+
+  if ((flagval & SCOTCH_STRATSAFETY) != 0)
+    difsptr = "";
+  else 
+    difsptr = "d{pass=40}";
+  difkptr = "d{pass=40}";
+
+  if ((flagval & SCOTCH_STRATBALANCE) != 0) {
+    exasptr = "f{bal=<KBAL>}";
+    exaxptr = "x{bal=<KBAL>}f{bal=<KBAL>,move=<KMOV>}";
+  }
+  else {
+    exasptr = "";
+    exaxptr = "";
+  }
+
+  stringSubst (bufftab, "<MVRT>", mvrttab);
+  stringSubst (bufftab, "<EXAX>", exaxptr);
+  stringSubst (bufftab, "<EXAS>", exasptr);
+  stringSubst (bufftab, "<DIFS>", difsptr);
+  stringSubst (bufftab, "<DIFK>", difkptr);
+  stringSubst (bufftab, "<KMOV>", kmovtab);
+  stringSubst (bufftab, "<KBAL>", kbaltab);
+  stringSubst (bufftab, "<BBAL>", bbaltab);
+
+  if (SCOTCH_stratGraphMap (straptr, bufftab) != 0) {
+    errorPrint ("SCOTCH_stratGraphMapBuild: error in sequential mapping strategy");
+    return     (1);
+  }
+
+  return (0);
+}
+
+/*+ This routine provides predefined
+*** clustering strategies.
+*** It returns:
+*** - 0   : if string successfully initialized.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_stratGraphClusterBuild (
+SCOTCH_Strat * const        straptr,              /*+ Strategy to create      +*/
+const SCOTCH_Num            flagval,              /*+ Desired characteristics +*/
+const SCOTCH_Num            pwgtval,              /*+ Threshold part weight   +*/
+const double                densval,              /*+ Threshold density value +*/
+const double                bbalval)              /*+ Maximum imbalance ratio +*/
+{
+  char                bufftab[8192];              /* Should be enough */
+  char                bbaltab[32];
+  char                pwgttab[32];
+  char                denstab[32];
   char *              difsptr;
   char *              exasptr;
 
-  for (parttmp = partnbr, blogval = 1; parttmp != 0; parttmp >>= 1, blogval ++) ; /* Get log2 of number of parts */
-
-  blogtmp = 1.0 / (double) blogval;               /* Taylor development of (1 + balrat) ^ (1 / blogval) */
-  bbalval = (balrat * blogtmp) * (1.0 + (blogtmp - 1.0) * (balrat * 0.5 * (1.0 + (blogtmp - 2.0) * balrat / 3.0)));
   sprintf (bbaltab, "%lf", bbalval);
+  sprintf (denstab, "%lf", densval);
+  sprintf (pwgttab, GNUMSTRING, pwgtval);
 
-  strcpy (bufftab, "r{job=t,map=t,poli=S,sep=(m{type=h,vert=80,low=h{pass=10}f{bal=<BBAL>,move=80},asc=b{bnd=<DIFS>f{bal=<BBAL>,move=80},org=f{bal=<BBAL>,move=80}}}|m{type=h,vert=80,low=h{pass=10}f{bal=<BBAL>,move=80},asc=b{bnd=<DIFS>f{bal=<BBAL>,move=80},org=f{bal=<BBAL>,move=80}}})<EXAS>}");
+  strcpy (bufftab, "r{job=u,map=t,poli=L,sep=/((load><PWGT>)&!(edge>vert*<DENS>*(vert-1)))?(<BIPA>m{vert=80,low=h{pass=10}f{bal=<BBAL>,move=80},asc=b{bnd=<DIFS>f{bal=<BBAL>,move=80},org=f{bal=<BBAL>,move=80}}})<EXAS>;}");
+  stringSubst (bufftab, "<BIPA>", ((flagval & SCOTCH_STRATSPEED) != 0) ? ""
+               : "m{vert=80,low=h{pass=10}f{bal=<BBAL>,move=80},asc=b{bnd=<DIFS>f{bal=<BBAL>,move=80},org=f{bal=<BBAL>,move=80}}}|");
 
   if ((flagval & SCOTCH_STRATBALANCE) != 0)
     exasptr = "f{bal=0}";
@@ -344,14 +731,16 @@ const double                balrat)               /*+ Desired imbalance ratio   
   if ((flagval & SCOTCH_STRATSAFETY) != 0)
     difsptr = "";
   else
-    difsptr = "(d{dif=1,rem=1,pass=40}|)";
+    difsptr = "(d{pass=40}|)";
 
   stringSubst (bufftab, "<EXAS>", exasptr);
   stringSubst (bufftab, "<DIFS>", difsptr);
   stringSubst (bufftab, "<BBAL>", bbaltab);
+  stringSubst (bufftab, "<DENS>", denstab);
+  stringSubst (bufftab, "<PWGT>", pwgttab);
 
-  if (SCOTCH_stratGraphMap (stratptr, bufftab) != 0) {
-    errorPrint ("SCOTCH_stratGraphMapBuild: error in sequential mapping strategy");
+  if (SCOTCH_stratGraphMap (straptr, bufftab) != 0) {
+    errorPrint ("SCOTCH_stratGraphClusterBuild: error in sequential mapping strategy");
     return     (1);
   }
 

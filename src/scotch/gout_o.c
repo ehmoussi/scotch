@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2011,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -53,7 +53,9 @@
 /**                # Version 5.0  : from : 25 may 2007     **/
 /**                                 to     18 jun 2007     **/
 /**                # Version 5.1  : from : 25 oct 2007     **/
-/**                                 to     15 aug 2010     **/
+/**                                 to     14 feb 2011     **/
+/**                # Version 6.0  : from : 01 jan 2012     **/
+/**                                 to   : 01 jan 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -237,7 +239,7 @@ FILE * const                stream)               /* Output stream   */
       outDrawTulMesh (grafptr, geomptr, mapptr, stream);
       break;
     default :
-      errorPrint ("outDraw: invalid output method (%d)", O_outParam.type);
+      errorPrint ("outDraw: invalid output method '%d'", O_outParam.type);
   }
 }
 

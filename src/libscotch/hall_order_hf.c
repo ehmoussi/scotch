@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -48,6 +48,8 @@
 /**                                 to   : 29 aug 2007     **/
 /**                # Version 5.1  : from : 08 dec 2010     **/
 /**                                 to   : 08 dec 2010     **/
+/**                # Version 6.0  : from : 08 mar 2012     **/
+/**                                 to   : 08 mar 2012     **/
 /**                                                        **/
 /**   NOTES      : # This module contains pieces of code   **/
 /**                  that belong to other people; see      **/
@@ -132,7 +134,7 @@
 /**    --------------------------                                        **/
 /**    NBBUCK : integer greater than 1 (advised value is 2*N)            **/
 /**    HEAD   : HEAD(0:NBBUCK+1) integer array of size NBBUCK+2          **/
-/**    NOTE that it start at index 0 !!                                  **/
+/**    NOTE that it starts at index 0 !!                                 **/
 /**                                                                      **/
 /** 2/ Interface for MA41 or SCOTCH                                      **/
 /**                                                                      **/
@@ -145,10 +147,10 @@
 
 void
 hallOrderHfR2hamdf4 (
-Gnum                n,                            /* Matrix order                             */
-Gnum                nbelts,                       /* Number of elements                       */
-Gnum                nbbuck,                       /* Number of buckets                        */
-Gnum                iwlen,                        /* Length of array iw                       */
+const Gnum          n,                            /* Matrix order                             */
+const Gnum          nbelts,                       /* Number of elements                       */
+const Gnum          nbbuck,                       /* Number of buckets                        */
+const Gnum          iwlen,                        /* Length of array iw                       */
 Gnum * restrict     pe /* [] */,                  /* Array of indexes in iw of start of row i */
 Gnum                pfree,                        /* Useful size in iw                        */
 Gnum * restrict     len /* [] */,                 /* Array of lengths of adjacency lists      */
@@ -156,7 +158,7 @@ Gnum * restrict     iw /* [] */,                  /* Adjacency list array       
 Gnum * restrict     nv /* [] */,                  /* Array of element degrees                 */
 Gnum * restrict     elen /* [] */,                /* Array that holds the inverse permutation */
 Gnum * restrict     last /* [] */,                /* Array that holds the permutation         */
-Gnum * restrict     ncmpa,                        /* Number of times array iw was compressed  */
+Gnum * restrict     ncmpaptr,                     /* Number of times array iw was compressed  */
 Gnum * restrict     degree /* [] */,              /* Array that holds degree data             */
 Gnum * restrict     wf /* [] */,                  /* Flag array                               */
 Gnum * restrict     next /* [] */,                /* Linked list structure                    */
@@ -168,6 +170,7 @@ Gnum * restrict     head /* [] */)                /* Linked list structure      
                       ilast, jlast, inext, jnext, n2, p1, nvpiv, p2, p3, me = 0, nbflag, ln,
                       we, pj, pn, mindeg, elenme, slenme, maxmem, newmem, wf3, wf4, 
                       deg, eln, mem, nel, pme, pas, nvi, nvj, pme1, pme2, knt1, knt2, knt3;
+  Gnum                ncmpa;
   float               rmf, rmf1;
 
 /** Min fill approximation one extra array of size NBBUCK+2 is needed    **/
@@ -406,7 +409,7 @@ Gnum * restrict     head /* [] */)                /* Linked list structure      
 /*  pas = n / 8; [Update F.P. 20020715 selon hamf_20020220] Distance betweeen elements of the N, ..., NBBUCK entries of HEAD */
   pas = MAX ((n / 8), 1);                         /* Distance betweeen elements of the N, ..., NBBUCK entries of HEAD        */
   wflg = 2;
-  *ncmpa = 0;
+  ncmpa = 0;
   nel = 0;
   hmod = MAX (1, nbbuck - 1);
   dmax = 0;
@@ -471,9 +474,10 @@ Gnum * restrict     head /* [] */)                /* Linked list structure      
     }
   }
 
-/* Temporary Patch 8/12/03 <PA> TODO REMOVE */
-  if (nbelts != nel)
+#ifdef SCOTCH_DEBUG_ORDER2
+  if (nbelts != nel)                              /* Temporary Patch 8/12/03 <PA> */
     printf ("error 8Dec2003\n");
+#endif /* SCOTCH_DEBUG_ORDER2 */
 
   nreal = n - nbflag;
 
@@ -540,7 +544,7 @@ Gnum * restrict     head /* [] */)                /* Linked list structure      
     }                                             /* L40:     */
     mindeg = deg;
     if (me <= 0) {                                /* Error 1 */
-      *ncmpa = -n;
+      *ncmpaptr = -n;
       return;
     }
 
@@ -639,7 +643,7 @@ Gnum * restrict     head /* [] */)                /* Linked list structure      
               len[e] = ln - knt2;
               if (len[e] == 0)
                 pe[e] = 0;
-              (*ncmpa) ++;
+              ncmpa ++;
 
               for (j = 1; j <= n; j ++) {
                 pn = pe[j];
@@ -678,7 +682,7 @@ Gnum * restrict     head /* [] */)                /* Linked list structure      
             degme +=   nvi;
             nv[i]  = - nvi;
             iw[pfree] = i;
-            (pfree) ++;
+            pfree ++;
 
             if (degree[i] != n2) {
               ilast = last[i];
@@ -980,7 +984,7 @@ L240:
     nv[me]   = n - nreal;                         /* Patch 12/12/98 <PA+FP> (old: n + 1) */
     pe[me]   = 0;
     if (nel != n) {                               /* Error 2 */
-      *ncmpa = - (n + 1);
+      *ncmpaptr = - (n + 1);
       return;
     }
   }
@@ -1015,5 +1019,6 @@ L240:
   }                                               /* L300: */
 #endif /* DEAD_CODE */
 
-  pfree = maxmem;
+/* pfree = maxmem;                                   Patch 08/03/12 <FP> No need to update pfree */
+  *ncmpaptr = ncmpa;
 }

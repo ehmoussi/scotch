@@ -34,7 +34,7 @@
 /**   NAME       : dmapping.h                              **/
 /**                                                        **/
 /**   AUTHORS    : Francois PELLEGRINI                     **/
-/**                Jun-Ho HER                              **/
+/**                Jun-Ho HER (v6.0)                       **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the declarations for    **/
 /**                the parallel mapping handling routines. **/

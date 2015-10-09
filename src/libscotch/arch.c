@@ -1,4 +1,4 @@
-/* Copyright 2004,2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007-2013 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch.c                                  **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module handles the generic target  **/
 /**                architecture functions.                 **/
@@ -62,6 +63,8 @@
 /**                                 to     09 jan 2004     **/
 /**                # Version 5.1  : from : 11 dec 2007     **/
 /**                                 to     25 jun 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     26 nov 2013     **/
 /**                                                        **/
 /************************************************************/
 
@@ -77,6 +80,7 @@
 #include "arch_cmplt.h"
 #include "arch_cmpltw.h"
 #include "arch_deco.h"
+#include "arch_dist.h"
 #include "arch_hcub.h"
 #include "arch_mesh.h"
 #include "arch_tleaf.h"
@@ -91,8 +95,10 @@
 static const ArchClass      archClassTab[] = { ARCHCLASSBLOCK ("cmplt",    Cmplt,  ARCHPART),
                                                ARCHCLASSBLOCK ("cmpltw",   Cmpltw, ARCHPART),
                                                ARCHCLASSBLOCK ("deco",     Deco,   ARCHNONE),
+                                               ARCHCLASSBLOCK ("dist",     Dist,   ARCHNONE),
                                                ARCHCLASSBLOCK ("hcub",     Hcub,   ARCHNONE),
                                                ARCHCLASSBLOCK ("tleaf",    Tleaf,  ARCHNONE),
+                                               ARCHCLASSBLOCK ("ltleaf",   Ltleaf, ARCHNONE),
                                                ARCHCLASSBLOCK ("mesh2D",   Mesh2,  ARCHNONE),
 #ifdef SCOTCH_DEBUG_ARCH3
                                                ARCHCLASSBLOCK ("mesh2O",   Mesh2o, ARCHNONE),
@@ -101,6 +107,7 @@ static const ArchClass      archClassTab[] = { ARCHCLASSBLOCK ("cmplt",    Cmplt
                                                ARCHCLASSBLOCK ("mesh3D",   Mesh3,  ARCHNONE),
                                                ARCHCLASSBLOCK ("torus2D",  Torus2, ARCHNONE),
                                                ARCHCLASSBLOCK ("torus3D",  Torus3, ARCHNONE),
+                                               ARCHCLASSBLOCK ("torusXD",  TorusX, ARCHNONE),
                                                ARCHCLASSBLOCK ("varcmplt", Vcmplt, ARCHPART | ARCHVAR),
                                                ARCHCLASSBLOCK ("varhcub",  Vhcub,  ARCHVAR),
                                                ARCHCLASSBLOCKNULL };
@@ -125,7 +132,7 @@ int
 archInit (
 Arch * restrict const       archptr)
 {
-  memset (archptr, 0, sizeof (Arch));             /* Initialize architecture body (arch->class = NULL) */
+  memSet (archptr, 0, sizeof (Arch));             /* Initialize architecture body (arch->class = NULL) */
 
   return (0);
 }
@@ -159,7 +166,7 @@ Arch * restrict const       archptr)
   if ((archptr->class           != NULL) &&
       (archptr->class->archFree != NULL))         /* If there is a specific freeing routing                */
     o = archptr->class->archFree (&archptr->data); /* Call it                                              */
-  memset (archptr, 0, sizeof (Arch));             /* Initialize the architecture body (arch->class = NULL) */
+  memSet (archptr, 0, sizeof (Arch));             /* Initialize the architecture body (arch->class = NULL) */
 
   return (o);
 }
@@ -192,11 +199,13 @@ FILE * const                stream)
   if (class->archLoad != NULL) {                  /* If class has loading function */
     if (class->archLoad (&archptr->data, stream) != 0) { /* Load class data        */
       errorPrint ("archLoad: cannot load architecture data");
-      memset     (archptr, 0, sizeof (Arch));     /* Initialize architecture body */
-      return     (1);
+      class->archFree (&archptr->data);           /* Perform clean-up             */
+      memSet (archptr, 0, sizeof (Arch));         /* Initialize architecture body */
+      return (1);
     }
   }
-  archptr->class = class;                         /* Set architecture class */
+  archptr->class   = class;                       /* Set architecture class */
+  archptr->flagval = archptr->class->flagval;     /* Copy architecture flag */
 
   return (0);
 }
@@ -436,7 +445,7 @@ ArchDom * const             dom1ptr)
 
   o = archDomBipart2 (archptr, domptr, dom0ptr, dom1ptr); /* Call proper routine */
 
-  if ((o == 0) &&                                 /* Check domain number coherence for fixed-sized architectures */
+  if ((o == 0) &&                                 /* Check domain number consistency for fixed-sized architectures */
       (strncmp (archName (archptr), "var", 3) != 0) &&
       (archDomNum (archptr, dom0ptr) != archDomNum (archptr, domptr))) {
     errorPrint ("archDomBipart: domain number mismatch");
@@ -444,6 +453,27 @@ ArchDom * const             dom1ptr)
   }
 
   return (o);
+}
+
+#endif /* SCOTCH_DEBUG_ARCH2 */
+
+/* This function checks if dom1 is
+** included in dom0.
+** It returns:
+** - 0  : if dom1 is not included in dom0.
+** - 1  : if dom1 is included in dom0.
+** - 2  : on error.
+*/
+
+#ifdef SCOTCH_DEBUG_ARCH2
+
+int
+archDomIncl (
+const Arch * const          archptr,
+const ArchDom * const       dom0ptr,
+const ArchDom * const       dom1ptr)
+{
+  return archDomIncl2 (archptr, dom0ptr, dom1ptr);
 }
 
 #endif /* SCOTCH_DEBUG_ARCH2 */

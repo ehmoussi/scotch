@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : mapping.h                               **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the declarations for    **/
 /**                the mapping handling routines.          **/
@@ -62,6 +63,8 @@
 /**                                 to     13 nov 2005     **/
 /**                # Version 5.1  : from : 25 jun 2008     **/
 /**                                 to     04 nov 2010     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     14 sep 2014     **/
 /**                                                        **/
 /**   NOTES      : # While Anum and Gnum are different     **/
 /**                  types, because architectures are      **/
@@ -78,6 +81,21 @@
 #define MAPPING_H
 
 /*
+**  The defines.
+*/
+
+/*+ Prime number for hashing terminal domain numbers. +*/
+
+#define MAPPINGHASHPRIME            17            /*+ Prime number for hashing +*/
+
+/*+ Graph option flags. +*/
+
+#define MAPPINGNONE                 0x0000        /* No options set */
+
+#define MAPPINGFREEPART             0x0001        /* Free partition array */
+#define MAPPINGFREEDOMN             0x0002        /* Free domain array    */
+
+/*
 **  The type definitions.
 */
 
@@ -86,15 +104,23 @@
     a target architecture.                +*/
 
 typedef struct Mapping_ {
-  Gnum                      baseval;              /*+ Base value for structures     +*/
-  Gnum                      vertnbr;              /*+ Number of vertices in mapping +*/
-  Anum *                    parttax;              /*+ Mapping array [vertnbr]       +*/
-  ArchDom *                 domntab;              /*+ Array of domains [termmax]    +*/
-  Anum                      domnnbr;              /*+ Current number of domains     +*/
-  Anum                      domnmax;              /*+ Maximum number of domains     +*/
-  Arch                      archdat;              /*+ Architecture data             +*/
-  ArchDom                   domnorg;              /*+ Initial (sub)domain           +*/
+  int                       flagval;              /*+ Mapping properties         +*/
+  const Graph *             grafptr;              /*+ Graph data                 +*/
+  const Arch *              archptr;              /*+ Architecture data          +*/
+  Anum *                    parttax;              /*+ Mapping array [vertnbr]    +*/
+  ArchDom *                 domntab;              /*+ Array of domains [domnmax] +*/
+  Anum                      domnnbr;              /*+ Current number of domains  +*/
+  Anum                      domnmax;              /*+ Maximum number of domains  +*/
+  ArchDom                   domnorg;              /*+ Initial (sub)domain        +*/
 } Mapping;
+
+/*+ The target architecture sort structure, used
+    to sort vertices by increasing label value.  +*/
+
+typedef struct MappingHash_ {
+  Anum                      termnum;              /*+ Terminal vertex number +*/
+  Anum                      domnnum;              /*+ Domain number          +*/
+} MappingHash;
 
 /*+ The target architecture sort structure, used
     to sort vertices by increasing label value.  +*/
@@ -107,16 +133,26 @@ typedef struct MappingSort_ {
 /*
 **  The function prototypes.
 */
+void                        mapExit             (Mapping * const);
 
 #ifndef MAPPING
 #define static
 #endif
 
-int                         mapInit             (Mapping * restrict const, const Gnum, const Gnum, const Arch * restrict const);
-int                         mapInit2            (Mapping * restrict const, const Gnum, const Gnum, const Arch * restrict const, const ArchDom * restrict const);
+void                        mapInit             (Mapping * restrict const, const Graph * restrict const, const Arch * restrict const, const ArchDom * restrict const);
+void                        mapInit2            (Mapping * restrict const, const Graph * restrict const, const Arch * restrict const, const ArchDom * restrict const, const Anum, const Anum);
 void                        mapExit             (Mapping * const);
+int                         mapAlloc            (Mapping * const);
+void                        mapFree             (Mapping * const);
+int                         mapResize           (Mapping * restrict const, const Anum);
+int                         mapResize2          (Mapping * restrict const, const Anum);
+int                         mapCopy             (Mapping * const, const Mapping * const);
+void                        mapFrst             (Mapping * const);
+int                         mapBuild            (Mapping * restrict const, const Anum * restrict const);
+int                         mapMerge            (Mapping * restrict const, const Anum * restrict const);
+void                        mapTerm             (const Mapping * restrict const, Anum * restrict const);
 int                         mapLoad             (Mapping * restrict const, const Gnum * restrict const, FILE * restrict const);
-int                         mapSave             (const Mapping * restrict const, const Gnum * restrict const, FILE * restrict const);
+int                         mapSave             (const Mapping * restrict const, FILE * restrict const);
 int                         mapView             (const Mapping * restrict const, const Graph * restrict const, FILE * const);
 
 #undef static

@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : bdgraph_bipart_zr.c                     **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                                                        **/
 /**   FUNCTION   : This module moves all of the vertices   **/
 /**                to the first subdomain of the           **/

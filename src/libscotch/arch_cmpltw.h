@@ -1,4 +1,4 @@
-/* Copyright 2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2008,2010,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_cmpltw.h                           **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/
 /**                for the weighted complete graph target  **/
@@ -41,6 +42,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 11 dec 2007     **/
 /**                                 to     04 nov 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     23 sep 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -48,17 +51,16 @@
 **  The type and structure definitions.
 */
 
-/*+ The weighted target vertex. They are coded as Gnum
-    rather than as Anum because this array needs to be
-    sorted, by means of the intSort2asc1 routine.      +*/
+#ifndef ARCH_CMPLTW_H_STRUCT
+#define ARCH_CMPLTW_H_STRUCT
 
-#ifndef GRAPH_H
-#define Gnum                        Anum          /* Prevent data type to be undefined */
-#endif /* GRAPH_H */
+/*+ The weighted target vertex. Since Anum's
+    are INT's, they can be sorted, by means
+    of the intSort2asc1 routine.             +*/
 
 typedef struct ArchCmpltwLoad_ {
-  Gnum                      veloval;              /*+ Vertex load  +*/
-  Gnum                      vertnum;              /*+ Vertex index +*/
+  Anum                      veloval;              /*+ Vertex load  +*/
+  Anum                      vertnum;              /*+ Vertex index +*/
 } ArchCmpltwLoad;
 
 /*+ The weighted complete graph definitions. +*/
@@ -77,15 +79,21 @@ typedef struct ArchCmpltwDom_ {
   Anum                      veloval;              /*+ Weight of subdomain   +*/
 } ArchCmpltwDom;
 
+#endif /* ARCH_CMPLTW_H_STRUCT */
+
 /*
 **  The function prototypes.
 */
+
+#ifndef ARCH_NOPROTO
+#ifndef ARCH_CMPLTW_H_PROTO
+#define ARCH_CMPLTW_H_PROTO
 
 #ifndef ARCH_CMPLTW
 #define static
 #endif
 
-int                         archCmpltwArchBuild (ArchCmpltw * restrict const archptr, const Gnum, const Gnum * restrict const);
+int                         archCmpltwArchBuild (ArchCmpltw * restrict const archptr, const Anum, const Anum * restrict const);
 int                         archCmpltwArchLoad  (ArchCmpltw * restrict const, FILE * restrict const);
 int                         archCmpltwArchSave  (const ArchCmpltw * const, FILE * restrict const);
 int                         archCmpltwArchFree  (ArchCmpltw * restrict const);
@@ -98,8 +106,12 @@ int                         archCmpltwDomFrst   (const ArchCmpltw * const, ArchC
 int                         archCmpltwDomLoad   (const ArchCmpltw * const, ArchCmpltwDom * const, FILE * const);
 int                         archCmpltwDomSave   (const ArchCmpltw * const, const ArchCmpltwDom * const, FILE * const);
 int                         archCmpltwDomBipart (const ArchCmpltw * const, const ArchCmpltwDom * const, ArchCmpltwDom * restrict const, ArchCmpltwDom * restrict const);
+int                         archCmpltwDomIncl   (const ArchCmpltw * const, const ArchCmpltwDom * const, const ArchCmpltwDom * const);
 #ifdef SCOTCH_PTSCOTCH
 int                         archCmpltwDomMpiType (const ArchCmpltw * const, MPI_Datatype * const);
 #endif /* SCOTCH_PTSCOTCH */
 
 #undef static
+
+#endif /* ARCH_CMPLTW_H_PROTO */
+#endif /* ARCH_NOPROTO        */

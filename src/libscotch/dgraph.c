@@ -1,4 +1,4 @@
-/* Copyright 2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -52,6 +52,8 @@
 /**                                 to   : 17 jul 2008     **/
 /**                # Version 5.1  : from : 21 jun 2008     **/
 /**                                 to   : 30 jul 2010     **/
+/**                # Version 6.0  : from : 12 sep 2012     **/
+/**                                 to   : 12 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -99,8 +101,15 @@ MPI_Comm                    proccomm)             /* Communicator to be used for
   return (0);
 }
 
-/* This routine frees the public data of the given
-** distributed graph, but not its private data.
+/* This routine frees the public and private data
+** of the given distributed graph, but not its
+** communicator.
+** Private data could have been kept and freed only
+** in dgraphExit(). Yet, freeing it along with the
+** graph public data is a way to avoid memory
+** fragmentation. Moreover, it allows to use compact
+** private data if some graphs are known not to have
+** holes.
 ** It is not a collective routine, as no communication
 ** is needed to perform the freeing of memory structures.
 ** It returns:
@@ -140,6 +149,9 @@ Dgraph * restrict const     grafptr)
     if (grafptr->edgegsttax != NULL)
       memFree (grafptr->edgegsttax + grafptr->baseval);
   }
+  if ((grafptr->flagval & DGRAPHFREEPRIV) != 0)   /* If private data has to be freed */
+    if (grafptr->procdsptab != NULL)
+      memFree (grafptr->procdsptab);              /* Free group leader of graph private data */
 }
 
 void
@@ -150,38 +162,20 @@ Dgraph * restrict const     grafptr)
   MPI_Comm            proccomm;                   /* Data for temporarily saving private data */
   int                 procglbnbr;
   int                 proclocnum;
-  Gnum * restrict     proccnttab;                 /* Some communication arrays are "int" and not "Gnum" because of MPI */
-  Gnum * restrict     procdsptab;
-  Gnum * restrict     procvrttab;
-  int * restrict      procngbtab;
-  int * restrict      procrcvtab;
-  int * restrict      procsndtab;
 
   dgraphFree2 (grafptr);                          /* Free all user fields */
 
-  flagval    = grafptr->flagval & (DGRAPHFREEPRIV | DGRAPHFREECOMM);
+  flagval    = grafptr->flagval & DGRAPHFREECOMM;
   proccomm   = grafptr->proccomm;                 /* Save private fields only */
   procglbnbr = grafptr->procglbnbr;
   proclocnum = grafptr->proclocnum;
-  proccnttab = grafptr->proccnttab;
-  procdsptab = grafptr->procdsptab;
-  procvrttab = grafptr->procvrttab;
-  procngbtab = grafptr->procngbtab;
-  procrcvtab = grafptr->procrcvtab;
-  procsndtab = grafptr->procsndtab;
 
-  memSet (grafptr, 0, sizeof (Dgraph));           /* Reset all of the graph structure */
+  memSet (grafptr, 0, sizeof (Dgraph));           /* Reset graph structure */
 
   grafptr->flagval    = flagval;                  /* Restore private fields */
   grafptr->proccomm   = proccomm;
   grafptr->procglbnbr = procglbnbr;
   grafptr->proclocnum = proclocnum;
-  grafptr->proccnttab = proccnttab;
-  grafptr->procdsptab = procdsptab;
-  grafptr->procvrttab = procvrttab;
-  grafptr->procngbtab = procngbtab;
-  grafptr->procrcvtab = procrcvtab;
-  grafptr->procsndtab = procsndtab;
 
   return;
 }
@@ -199,11 +193,8 @@ void
 dgraphExit (
 Dgraph * restrict const     grafptr)
 {
-  if ((grafptr->flagval & DGRAPHFREEPRIV) != 0)   /* If private data has to be freed */
-    if (grafptr->procdsptab != NULL)
-      memFree (grafptr->procdsptab);              /* Free group leader of graph private data */
-  if ((grafptr->flagval & DGRAPHFREECOMM) != 0)   /* If communicator has to be freed         */
-    MPI_Comm_free (&grafptr->proccomm);           /* Free it                                 */
+  if ((grafptr->flagval & DGRAPHFREECOMM) != 0)   /* If communicator has to be freed */
+    MPI_Comm_free (&grafptr->proccomm);           /* Free it                         */
 
   dgraphFree2 (grafptr);
 

@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : kdgraph_map_rb_map.c                    **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                                                        **/
 /**   FUNCTION   : This module performs the Dual Recursive **/
 /**                Bipartitioning mapping algorithm        **/ 

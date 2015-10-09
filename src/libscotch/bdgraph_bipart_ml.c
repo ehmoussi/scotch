@@ -1,4 +1,4 @@
-/* Copyright 2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -33,14 +33,16 @@
 /**                                                        **/
 /**   NAME       : bdgraph_bipart_ml.c                     **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                Francois PELLEGRINI                     **/
 /**                                                        **/
 /**   FUNCTION   : This module bipartitions a distributed  **/
 /**                graph using a multi-level scheme.       **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 30 oct 2007     **/
-/**                                 to   : 16 oct 2010     **/
+/**                                 to   : 14 apr 2011     **/
+/**              : # Version 6.0  : from : 11 sep 2011     **/
+/**                                 to   : 28 sep 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -86,17 +88,32 @@ const BdgraphBipartMlParam * const    paraptr)    /*+ Method parameters         
 {
   int                 foldval;
 
-  foldval = 1;
-  if ((paraptr->duplvlmax > -1) &&                /* duplvlmax can allow fold dup */
-      (paraptr->duplvlmax < finegrafptr->levlnum + 1))
-    foldval = 0;
-  else if (paraptr->duplvlmax < -1)               /* duplvlmax can allow only fold */
-    foldval = (-(paraptr->duplvlmax + 1) < (finegrafptr->levlnum + 1)) ? 0 : -1;
+  switch (paraptr->foldval) {
+    case 0 :
+      foldval = DGRAPHCOARSENNONE;
+      break;
+    case 1 :
+      foldval = DGRAPHCOARSENFOLD;
+      break;
+    case 2 :
+      foldval = DGRAPHCOARSENFOLDDUP;
+      break;
+#ifdef SCOTCH_DEBUG_BGRAPH2
+    default :
+      errorPrint ("bdgraphBipartMlCoarsen: invalid parameter");
+      return     (1);
+#endif /* SCOTCH_DEBUG_BDGRAPH2 */
+  }
+  if ((finegrafptr->s.vertglbnbr / finegrafptr->s.procglbnbr) > paraptr->foldmax) /* If no need to fold */
+    foldval = DGRAPHCOARSENNONE;
 
+  *coarmultptr = NULL;                            /* Let the routine create the multinode array */
+  dgraphInit (&coargrafptr->s, finegrafptr->s.proccomm); /* Re-use fine graph communicator      */
   if (dgraphCoarsen (&finegrafptr->s, &coargrafptr->s, coarmultptr, paraptr->passnbr,
-                     paraptr->coarnbr, foldval, paraptr->dupmax, paraptr->coarrat) != 0)
+                     paraptr->coarnbr, paraptr->coarrat, foldval) != 0)
     return (1);                                   /* Return if coarsening failed */
 
+  *coarmultptr -= coargrafptr->s.baseval;         /* Base pointer to multinode array    */
   coargrafptr->partgsttax = NULL;                 /* Do not allocate partition data yet */
   coargrafptr->fronloctab = NULL;
   coargrafptr->fronglbnbr = 0;
@@ -114,6 +131,7 @@ const BdgraphBipartMlParam * const    paraptr)    /*+ Method parameters         
     if ((coarveexloctax = (Gnum *) memAlloc (coargrafptr->s.vertlocnbr * sizeof (Gnum))) == NULL) {
       errorPrint ("bdgraphBipartMlCoarsen: out of memory");
       dgraphExit (&coargrafptr->s);               /* Only free Dgraph since veexloctax not allocated */
+      memFree    (*coarmultptr + coargrafptr->s.baseval);
       return     (1);
     }
     coarveexloctax -= coargrafptr->s.baseval;
@@ -135,16 +153,18 @@ const BdgraphBipartMlParam * const    paraptr)    /*+ Method parameters         
     coargrafptr->veexloctax = NULL;               /* Coarse graph does not have external gains  */
 
   coargrafptr->veexglbsum       = finegrafptr->veexglbsum;
-  coargrafptr->compglbload0avg  = finegrafptr->compglbload0avg; /* Only set constant partition parameters as others will be set on uncoarsening */
+  coargrafptr->compglbload0min  = finegrafptr->compglbload0min; /* Only set constant partition parameters as others will be set on uncoarsening */
+  coargrafptr->compglbload0max  = finegrafptr->compglbload0max;
+  coargrafptr->compglbload0avg  = finegrafptr->compglbload0avg;
   coargrafptr->commglbloadextn0 = finegrafptr->commglbloadextn0;
   coargrafptr->commglbgainextn0 = finegrafptr->commglbgainextn0;
-  coargrafptr->domdist          = finegrafptr->domdist;
-  coargrafptr->domwght[0]       = finegrafptr->domwght[0];
-  coargrafptr->domwght[1]       = finegrafptr->domwght[1];
+  coargrafptr->domndist         = finegrafptr->domndist;
+  coargrafptr->domnwght[0]      = finegrafptr->domnwght[0];
+  coargrafptr->domnwght[1]      = finegrafptr->domnwght[1];
   coargrafptr->levlnum          = finegrafptr->levlnum + 1;
 
   return (0);
-} 
+}
 
 /* This routine is the reduction-loc operator which
 ** returns in inout[2] the rank of the process which
@@ -283,6 +303,13 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
 
     bdgraphZero (finegrafptr);                    /* Assign all vertices to part 0 */
 
+#ifdef SCOTCH_DEBUG_BDGRAPH2
+    if (bdgraphCheck (finegrafptr) != 0) {
+      errorPrint ("bdgraphBipartMlUncoarsen: inconsistent graph data (1)");
+      return     (1);
+    }
+#endif /* SCOTCH_DEBUG_BDGRAPH2 */
+
     return (0);
   }
 
@@ -402,7 +429,7 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
 #ifdef SCOTCH_DEBUG_BDGRAPH2
           if (finepartgsttax[finevertlocnum] != ((GraphPart) ~0)) {
             errorPrint ("bdgraphBipartMlUncoarsen: internal error (1)");
-            return (1);
+            return     (1);
           }
 #endif /* SCOTCH_DEBUG_BDGRAPH2 */
           finepartgsttax[finevertlocnum] = (coarpartval & 1);
@@ -542,7 +569,7 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
     if (((partval < 3) && (vsndidxtab[4 * procngbnum + partval] >= vsndidxtab[4 * procngbnum + partval + 1])) ||
         (vsndidxtab[4 * procngbnum + partval] >= (vsnddsptab[procngbnum] + vsndcnttab[procngbnum]))) {
       errorPrint ("bdgraphBipartMlUncoarsen: internal error (3)");
-      return (1);
+      return     (1);
     }
 #endif /* SCOTCH_DEBUG_BDGRAPH2 */
     vsnddattab[vsndidxtab[4 * procngbnum + partval] ++] = vertglbend; /* Pack vertex in proper sub-array */
@@ -551,7 +578,7 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
   if (MPI_Alltoallv (vsnddattab, vsndcnttab, vsnddsptab, GNUM_MPI, 
                      vrcvdattab, vrcvcnttab, vrcvdsptab, GNUM_MPI, finegrafptr->s.proccomm) != MPI_SUCCESS) {
     errorPrint ("bdgraphBipartMlUncoarsen: communication error (5)");
-    return (1);
+    return     (1);
   }
     
   for (procnum = 0; procnum < fineprocglbnbr; ++ procnum) { /* Update local ones from the buffer for receiving data */
@@ -571,7 +598,7 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
 #ifdef SCOTCH_DEBUG_BDGRAPH2
       if ((finevertlocnum < baseval) || (finevertlocnum >= finevertlocnnd)) {
         errorPrint ("bdgraphBipartMlUncoarsen: internal error (4)");
-        return (1);
+        return     (1);
       }
 #endif /* SCOTCH_DEBUG_BDGRAPH2 */
       finepartgsttax[finevertlocnum] = 0;
@@ -585,7 +612,7 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
 #ifdef SCOTCH_DEBUG_BDGRAPH2
       if ((finevertlocnum < baseval) || (finevertlocnum >= finevertlocnnd)) {
         errorPrint ("bdgraphBipartMlUncoarsen: internal error (5)");
-        return (1);
+        return     (1);
       }
 #endif /* SCOTCH_DEBUG_BDGRAPH2 */
       finepartgsttax[finevertlocnum] = 1;
@@ -697,15 +724,13 @@ const DgraphCoarsenMulti * restrict const coarmulttax) /*+ Multinode array +*/
   finegrafptr->compglbload0dlt = finegrafptr->compglbload0 - finegrafptr->compglbload0avg;
   finegrafptr->compglbsize0    = reduglbtab[1];
   finegrafptr->fronglbnbr      = reduglbtab[2];
-  finegrafptr->commglbload     = ((reduglbtab[3] / 2) * finegrafptr->domdist + reduglbtab[4] + finegrafptr->commglbloadextn0);
+  finegrafptr->commglbload     = ((reduglbtab[3] / 2) * finegrafptr->domndist + reduglbtab[4] + finegrafptr->commglbloadextn0);
   finegrafptr->commglbgainextn = reduglbtab[5];
-
-  if (coargrafptr->s.procglbnbr != 0)
-    memFree ((void *) (coarmulttax + coargrafptr->s.baseval));
+  finegrafptr->bbalglbval      = coargrafptr->bbalglbval;
 
 #ifdef SCOTCH_DEBUG_BDGRAPH2
   if (bdgraphCheck (finegrafptr) != 0) {
-    errorPrint ("bdgraphBipartMlUncoarsen: inconsistent graph data");
+    errorPrint ("bdgraphBipartMlUncoarsen: inconsistent graph data (2)");
     return     (1);
   }
 #endif /* SCOTCH_DEBUG_BDGRAPH2 */
@@ -740,6 +765,7 @@ const BdgraphBipartMlParam * const  paraptr)      /* Method parameters */
     return (o);
   }
 
+  coarmulttax = NULL;                             /* Assume multinode array is not allocated */
   if (bdgraphBipartMlCoarsen (grafptr, &coargrafdat, &coarmulttax, paraptr) == 0) {
     o = (coargrafdat.s.procglbnbr == 0) ? 0 : bdgraphBipartMl2 (&coargrafdat, paraptr); /* Apply recursion on coarsened graph if it exists */
 
@@ -752,6 +778,8 @@ const BdgraphBipartMlParam * const  paraptr)      /* Method parameters */
     }
 
     bdgraphExit (&coargrafdat);
+    if (coarmulttax != NULL)                      /* If multinode array has been allocated */
+      memFree (coarmulttax + grafptr->s.baseval); /* Free array                            */
 
     if (o == 0)                                   /* If multi-level failed, apply low strategy as fallback */
       return (o);

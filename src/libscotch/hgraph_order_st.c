@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -47,6 +47,8 @@
 /**                                 to     05 jan 2005     **/
 /**                # Version 5.0  : from : 31 may 2008     **/
 /**                                 to     31 may 2008     **/
+/**                # Version 6.0  : from : 17 oct 2012     **/
+/**                                 to     17 oct 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -60,6 +62,8 @@
 #include "common.h"
 #include "parser.h"
 #include "graph.h"
+#include "arch.h"
+#include "mapping.h"
 #include "order.h"
 #include "hgraph.h"
 #include "hgraph_order_bl.h"
@@ -67,9 +71,12 @@
 #include "hgraph_order_gp.h"
 #include "hgraph_order_hd.h"
 #include "hgraph_order_hf.h"
+#include "hgraph_order_kp.h"
 #include "hgraph_order_nd.h"
 #include "hgraph_order_si.h"
 #include "hgraph_order_st.h"
+#include "kgraph.h"
+#include "kgraph_map_st.h"
 #include "vgraph.h"
 #include "vgraph_separate_st.h"
 
@@ -104,6 +111,11 @@ static union {
   StratNodeMethodData       padding;
 } hgraphorderstdefaulthf = { { 1, 1000000, 0.08L } };
 
+static union {
+  HgraphOrderKpParam        param;
+  StratNodeMethodData       padding;
+} hgraphorderstdefaultkp = { { 1, &stratdummy } };
+
 static union {                                    /* Default parameters for nested dissection method */
   HgraphOrderNdParam        param;
   StratNodeMethodData       padding;
@@ -115,6 +127,7 @@ static StratMethodTab       hgraphorderstmethtab[] = { /* Graph ordering methods
                               { HGRAPHORDERSTMETHGP, "g",  hgraphOrderGp, &hgraphorderstdefaultgp },
                               { HGRAPHORDERSTMETHHD, "d",  hgraphOrderHd, &hgraphorderstdefaulthd },
                               { HGRAPHORDERSTMETHHF, "f",  hgraphOrderHf, &hgraphorderstdefaulthf },
+                              { HGRAPHORDERSTMETHKP, "k",  hgraphOrderKp, &hgraphorderstdefaultkp },
                               { HGRAPHORDERSTMETHND, "n",  hgraphOrderNd, &hgraphorderstdefaultnd },
                               { HGRAPHORDERSTMETHSI, "s",  hgraphOrderSi, NULL },
                               { -1,                  NULL, NULL,          NULL } };
@@ -168,6 +181,14 @@ static StratParamTab        hgraphorderstparatab[] = { /* The method parameter l
                                 (byte *) &hgraphorderstdefaulthf.param,
                                 (byte *) &hgraphorderstdefaulthf.param.fillrat,
                                 NULL },
+                              { HGRAPHORDERSTMETHKP,  STRATPARAMINT,    "siz",
+                                (byte *) &hgraphorderstdefaultkp.param,
+                                (byte *) &hgraphorderstdefaultkp.param.partsiz,
+                                NULL },
+                              { HGRAPHORDERSTMETHKP,  STRATPARAMSTRAT,  "strat",
+                                (byte *) &hgraphorderstdefaultkp.param,
+                                (byte *) &hgraphorderstdefaultkp.param.strat,
+                                (void *) &kgraphmapststratab },
                               { HGRAPHORDERSTMETHND,  STRATPARAMSTRAT,  "sep",
                                 (byte *) &hgraphorderstdefaultnd.param,
                                 (byte *) &hgraphorderstdefaultnd.param.sepstrat,

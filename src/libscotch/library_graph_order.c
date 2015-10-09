@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010,2012-2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -49,6 +49,8 @@
 /**                                 to     04 aug 2007     **/
 /**                # Version 5.1  : from : 30 oct 2007     **/
 /**                                 to     14 aug 2010     **/
+/**                # Version 6.0  : from : 08 jan 2012     **/
+/**                                 to     15 nov 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -93,7 +95,7 @@ SCOTCH_Num * const          cblkptr,              /*+ Pointer to number of colum
 SCOTCH_Num * const          rangtab,              /*+ Column block range array           +*/
 SCOTCH_Num * const          treetab)              /*+ Separator tree array               +*/
 {
-  Graph *             srcgrafptr;
+  const Graph *       srcgrafptr;
   LibOrder *          libordeptr;
 
 #ifdef SCOTCH_DEBUG_LIBRARY1
@@ -140,7 +142,7 @@ const SCOTCH_Graph * const        grafptr,        /*+ Graph to order   +*/
 SCOTCH_Ordering * restrict const  ordeptr,        /*+ Ordering to load +*/
 FILE * restrict const             stream)         /*+ Output stream    +*/
 {
-  Graph *             srcgrafptr;
+  const Graph *       srcgrafptr;
   LibOrder *          libordeptr;
 
   srcgrafptr = (Graph *) grafptr;
@@ -185,7 +187,7 @@ const SCOTCH_Graph * const    grafptr,            /*+ Graph to order   +*/
 const SCOTCH_Ordering * const ordeptr,            /*+ Ordering to save +*/
 FILE * const                  stream)             /*+ Output stream    +*/
 {
-  return (orderSaveMap (&((LibOrder *) ordeptr)->o, ((Graph *) grafptr)->vlbltax, stream));
+  return (orderSaveMap (&((LibOrder *) ordeptr)->o, ((Graph *) grafptr)->vlbltax + ((Graph *) grafptr)->baseval, stream));
 }
 
 /*+ This routine saves to the given stream
@@ -202,7 +204,7 @@ const SCOTCH_Graph * const    grafptr,            /*+ Graph to order   +*/
 const SCOTCH_Ordering * const ordeptr,            /*+ Ordering to save +*/
 FILE * const                  stream)             /*+ Output stream    +*/
 {
-  return (orderSaveTree (&((LibOrder *) ordeptr)->o, ((Graph *) grafptr)->vlbltax, stream));
+  return (orderSaveTree (&((LibOrder *) ordeptr)->o, ((Graph *) grafptr)->vlbltax + ((Graph *) grafptr)->baseval, stream));
 }
 
 /*+ This routine computes an ordering
@@ -239,23 +241,16 @@ const SCOTCH_Num            listnbr,              /*+ Number of vertices in list
 const SCOTCH_Num * const    listtab,              /*+ List of vertex indices to order +*/
 SCOTCH_Strat * const        stratptr)             /*+ Ordering strategy               +*/
 {
-  Graph * restrict    srcgrafptr;
-  LibOrder *          libordeptr;                 /* Pointer to ordering             */
-  Hgraph              halgrafdat;                 /* Halo source graph structure     */
-  Hgraph              halgraftmp;                 /* Halo source graph structure     */
-  Hgraph *            halgrafptr;                 /* Pointer to halo graph structure */
-  const Strat *       ordstratptr;                /* Pointer to ordering strategy    */
-  OrderCblk *         cblkptr;
+  const Graph * restrict  srcgrafptr;
+  LibOrder *              libordeptr;             /* Pointer to ordering             */
+  Hgraph                  halgrafdat;             /* Halo source graph structure     */
+  Hgraph                  halgraftmp;             /* Halo source graph structure     */
+  Hgraph *                halgrafptr;             /* Pointer to halo graph structure */
+  const Strat *           ordstratptr;            /* Pointer to ordering strategy    */
+  OrderCblk *             cblkptr;
 
   srcgrafptr = (Graph *) grafptr;
   libordeptr = (LibOrder *) ordeptr;              /* Get ordering */
-
-#ifdef SCOTCH_DEBUG_GRAPH2
-  if (graphCheck (srcgrafptr) != 0) {
-    errorPrint ("SCOTCH_graphOrderComputeList: invalid input graph");
-    return     (1);
-  }
-#endif /* SCOTCH_DEBUG_GRAPH2 */
 
 #ifdef SCOTCH_DEBUG_LIBRARY1
   if ((listnbr < 0) || (listnbr > srcgrafptr->vertnbr)) {
@@ -263,16 +258,20 @@ SCOTCH_Strat * const        stratptr)             /*+ Ordering strategy         
     return     (1);
   }
 #endif /* SCOTCH_DEBUG_LIBRARY1 */
-  if (listnbr == 0) {                             /* If empty list, return identity peremutation */
-    Gnum                vertnum;
+#ifdef SCOTCH_DEBUG_LIBRARY2
+  if (graphCheck (srcgrafptr) != 0) {
+    errorPrint ("SCOTCH_graphOrderComputeList: invalid input graph");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_LIBRARY2 */
 
-    for (vertnum = 0; vertnum < srcgrafptr->vertnbr; vertnum ++)
-      libordeptr->o.peritab[vertnum] = vertnum + srcgrafptr->baseval;
-    return (0);
+  if (listnbr == 0) {                             /* If empty list, return identity peremutation */
+    intAscn (libordeptr->o.peritab, srcgrafptr->vertnbr, srcgrafptr->baseval);
+    return  (0);
   }
 
   if (*((Strat **) stratptr) == NULL)             /* Set default ordering strategy if necessary */
-    SCOTCH_stratGraphOrderBuild (stratptr, SCOTCH_STRATQUALITY, 0.2);
+    SCOTCH_stratGraphOrderBuild (stratptr, SCOTCH_STRATQUALITY, 0, 0.2);
 
   ordstratptr = *((Strat **) stratptr);
   if (ordstratptr->tabl != &hgraphorderststratab) {
@@ -353,6 +352,8 @@ SCOTCH_Strat * const        stratptr)             /*+ Ordering strategy         
     }
     halgrafptr = &halgraftmp;
   }
+
+  intRandInit ();                                 /* Check that random number generator is initialized */
 
   hgraphOrderSt (halgrafptr, &libordeptr->o, 0, cblkptr, ordstratptr);
 
@@ -485,16 +486,56 @@ const char * const          string)
 
 int
 SCOTCH_stratGraphOrderBuild (
-SCOTCH_Strat * const        stratptr,             /*+ Strategy to create      +*/
-const SCOTCH_Num            flagval,              /*+ Desired characteristics +*/
-const double                balrat)               /*+ Desired imbalance ratio +*/
+SCOTCH_Strat * const        stratptr,             /*+ Strategy to create                 +*/
+const SCOTCH_Num            flagval,              /*+ Desired characteristics            +*/
+const SCOTCH_Num            levlnbr,              /*+ Number of nested dissection levels +*/
+const double                balrat)               /*+ Desired imbalance ratio            +*/
 {
   char                bufftab[8192];              /* Should be enough */
+  char                levltab[32];
   char                bbaltab[32];
-
-  strcpy (bufftab, "c{rat=0.7,cpr=n{sep=/(vert>240)?m{type=h,rat=0.7,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=(|h{pass=10})f{bal=<BBAL>}}}|m{type=h,rat=0.7,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=(|h{pass=10})f{bal=<BBAL>}}};,ole=f{cmin=0,cmax=100000,frat=0.0},ose=g},unc=n{sep=/(vert>240)?m{type=h,rat=0.7,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=(|h{pass=10})f{bal=<BBAL>}}}|m{type=h,rat=0.7,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=(|h{pass=10})f{bal=<BBAL>}}};,ole=f{cmin=15,cmax=100000,frat=0.0},ose=g}}");
+  char *              sepaptr;
+  char *              tstsptr;
+  char *              oleaptr;
+  char *              osepptr;
 
   sprintf (bbaltab, "%lf", balrat);
+  sprintf (levltab, GNUMSTRING, levlnbr);
+
+  strcpy (bufftab, "c{rat=0.7,cpr=n{sep=/(<TSTS>)?m{rat=0.7,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=(|h{pass=10})f{bal=<BBAL>}}}<SEPA>;,ole=<OLEA>,ose=<OSEP>},unc=n{sep=/(<TSTS>)?m{rat=0.7,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=(|h{pass=10})f{bal=<BBAL>}}}<SEPA>;,ole=<OLEA>,ose=<OSEP>}}");
+
+  switch (flagval & (SCOTCH_STRATLEVELMIN | SCOTCH_STRATLEVELMAX)) {
+    case SCOTCH_STRATLEVELMIN :
+      tstsptr = "(levl<<LEVL>)|(vert>240)";
+      break;
+    case SCOTCH_STRATLEVELMAX :
+      tstsptr = "(levl<<LEVL>)&(vert>240)";
+      break;
+    case (SCOTCH_STRATLEVELMIN | SCOTCH_STRATLEVELMAX) :
+      tstsptr = "levl<<LEVL>";
+      break;
+    default :
+      tstsptr = "vert>240";
+      break;
+  }
+
+  sepaptr = ((flagval & SCOTCH_STRATSPEED) != 0)
+            ? ""
+            : "|m{rat=0.7,vert=100,low=h{pass=10},asc=b{width=3,bnd=f{bal=<BBAL>},org=(|h{pass=10})f{bal=<BBAL>}}}";
+
+  oleaptr = ((flagval & SCOTCH_STRATLEAFSIMPLE) != 0)
+            ? "s"
+            : "f{cmin=15,cmax=100000,frat=0.0}";
+
+  osepptr = ((flagval & SCOTCH_STRATSEPASIMPLE) != 0)
+            ? "s"
+            : "g";
+
+  stringSubst (bufftab, "<SEPA>", sepaptr);
+  stringSubst (bufftab, "<TSTS>", tstsptr);
+  stringSubst (bufftab, "<LEVL>", levltab);
+  stringSubst (bufftab, "<OLEA>", oleaptr);
+  stringSubst (bufftab, "<OSEP>", osepptr);
   stringSubst (bufftab, "<BBAL>", bbaltab);
 
   if (SCOTCH_stratGraphOrder (stratptr, bufftab) != 0) {

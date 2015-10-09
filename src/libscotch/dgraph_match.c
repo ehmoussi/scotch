@@ -1,4 +1,4 @@
-/* Copyright 2008-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2008-2010,2012,2013 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -42,6 +42,8 @@
 /**                                                        **/
 /**    DATES     : # Version 5.1  : from : 01 dec 2008     **/
 /**                                 to   : 30 jul 2010     **/
+/**                # Version 6.0  : from : 03 oct 2012     **/
+/**                                 to   : 10 oct 2013     **/
 /**                                                        **/
 /************************************************************/
 
@@ -137,100 +139,146 @@ DgraphMatchData * restrict const  mateptr)
 */
 
 #define DGRAPHMATCHSCANNAME         dgraphMatchSc /* Scan matching (no edge weights) */
-#define DGRAPHMATCHSCANINIT
-#define DGRAPHMATCHSCANCOUNTINIT                                          \
+#define DGRAPHMATCHSCANINIT                      \
+  probmax = (Gnum) (mateptr->probval * 32768.0);  /* Compute integer threshold of random value */
+#define DGRAPHMATCHSCANCOUNTDECL                 ;
+#define DGRAPHMATCHSCANCOUNTINIT                 \
       probval = intRandVal (32768);               /* Get proba for this vertex */
-#define DGRAPHMATCHSCANCOUNTSELECT                                        \
+#define DGRAPHMATCHSCANCOUNTSELECT               \
           edgefrenbr ++;
-#define DGRAPHMATCHSCANFINDSELECT                                         \
+#define DGRAPHMATCHSCANFINDSELECT                \
           (edgefrenbr -- == 0)
 #include "dgraph_match_scan.c"
 #undef DGRAPHMATCHSCANFINDSELECT
 #undef DGRAPHMATCHSCANCOUNTSELECT
 #undef DGRAPHMATCHSCANCOUNTINIT
+#undef DGRAPHMATCHSCANCOUNTDECL
 #undef DGRAPHMATCHSCANINIT
 #undef DGRAPHMATCHSCANNAME
 
 #define DGRAPHMATCHSCANNAME         dgraphMatchHy /* Heavy edge matching */
-#define DGRAPHMATCHSCANINIT                                                     \
-  const Gnum * restrict const edloloctax = mateptr->c.finegrafptr->edloloctax;  \
-  if (edloloctax == NULL) {                                                     \
-    dgraphMatchSc (mateptr);                                                    \
-    return;                                                                     \
-  }
-#define DGRAPHMATCHSCANCOUNTINIT                                                \
-      Gnum                edlolocmax;                                           \
-      edlolocmax = 0;                                                           \
+#define DGRAPHMATCHSCANINIT                                     \
+  const Gnum * restrict const edloloctax = grafptr->edloloctax; \
+  if (edloloctax == NULL) {                                     \
+    dgraphMatchSc (mateptr);                                    \
+    return;                                                     \
+  }                                                             \
+  probmax = (Gnum) (mateptr->probval * 32768.0);  /* Compute integer threshold of random value */
+#define DGRAPHMATCHSCANCOUNTDECL                                \
+      Gnum                edlolocmax;
+#define DGRAPHMATCHSCANCOUNTINIT                                \
+      edlolocmax = 0;                                           \
       probval = intRandVal (32768);               /* Get proba for this vertex */
-#define DGRAPHMATCHSCANCOUNTSELECT                                              \
-          Gnum                edlolocval;                                       \
-          edlolocval = edloloctax[edgelocnum];                                  \
-          if (edlolocval > edlolocmax) {                                        \
-            edlolocmax = edlolocval;                                            \
-            edgefrenbr = 1;                                                     \
-          }                                                                     \
-          else if (edlolocval == edlolocmax)                                    \
+#define DGRAPHMATCHSCANCOUNTSELECT                              \
+          Gnum                edlolocval;                       \
+          edlolocval = edloloctax[edgelocnum];                  \
+          if (edlolocval > edlolocmax) {                        \
+            edlolocmax = edlolocval;                            \
+            edgefrenbr = 1;                                     \
+          }                                                     \
+          else if (edlolocval == edlolocmax)                    \
             edgefrenbr ++;
-#define DGRAPHMATCHSCANFINDSELECT                                               \
-          ((edloloctax[edgelocnum] == edlolocmax) &&                            \
+#define DGRAPHMATCHSCANFINDSELECT                               \
+          ((edloloctax[edgelocnum] == edlolocmax) &&            \
            (edgefrenbr -- == 0))
 #include "dgraph_match_scan.c"
 #undef DGRAPHMATCHSCANFINDSELECT
 #undef DGRAPHMATCHSCANCOUNTSELECT
 #undef DGRAPHMATCHSCANCOUNTINIT
+#undef DGRAPHMATCHSCANCOUNTDECL
+#undef DGRAPHMATCHSCANINIT
+#undef DGRAPHMATCHSCANNAME
+
+#define DGRAPHMATCHSCANNAME         dgraphMatchHl /* Heavy edge matching of lightest vertices */
+#define DGRAPHMATCHSCANINIT                                        \
+  const Gnum * restrict const veloloctax = grafptr->veloloctax;    \
+  const Gnum * restrict const edloloctax = grafptr->edloloctax;    \
+  if ((veloloctax == NULL) || (edloloctax == NULL)) {              \
+    dgraphMatchHy (mateptr);                                       \
+    return;                                                        \
+  }                                                                \
+  probmax = (1 * grafptr->veloglbsum) / (5 * grafptr->vertglbnbr);
+#define DGRAPHMATCHSCANCOUNTDECL                                   \
+      Gnum                edlolocmax;
+#define DGRAPHMATCHSCANCOUNTINIT                                   \
+      edlolocmax = 0;                                              \
+      probval = veloloctax[vertlocnum];           /* Process vertex if vertex weight smaller than threshold */
+#define DGRAPHMATCHSCANCOUNTSELECT                                 \
+          Gnum                edlolocval;                          \
+          edlolocval = edloloctax[edgelocnum];                     \
+          if (edlolocval > edlolocmax) {                           \
+            edlolocmax = edlolocval;                               \
+            edgefrenbr = 1;                                        \
+          }                                                        \
+          else if (edlolocval == edlolocmax)                       \
+            edgefrenbr ++;
+#define DGRAPHMATCHSCANFINDSELECT                                  \
+          ((edloloctax[edgelocnum] == edlolocmax) &&               \
+           (edgefrenbr -- == 0))
+#include "dgraph_match_scan.c"
+#undef DGRAPHMATCHSCANFINDSELECT
+#undef DGRAPHMATCHSCANCOUNTSELECT
+#undef DGRAPHMATCHSCANCOUNTINIT
+#undef DGRAPHMATCHSCANCOUNTDECL
 #undef DGRAPHMATCHSCANINIT
 #undef DGRAPHMATCHSCANNAME
 
 #define DGRAPHMATCHSCANNAME         dgraphMatchLc /* Local scan matching */
-#define DGRAPHMATCHSCANINIT
-#define DGRAPHMATCHSCANCOUNTINIT                                                \
+#define DGRAPHMATCHSCANINIT             \
+  probmax = 0;                                    /* Vertices will always be active */
+#define DGRAPHMATCHSCANCOUNTDECL        ;
+#define DGRAPHMATCHSCANCOUNTINIT        \
       probval = 0;                                /* Vertices will always be active */
-#define DGRAPHMATCHSCANCOUNTSELECT                                              \
-          if (vertgstend < vertlocnnd)                                          \
-            edgefrenbr ++;                                                      \
-          else                                                                  \
+#define DGRAPHMATCHSCANCOUNTSELECT      \
+          if (vertgstend < vertlocnnd)  \
+            edgefrenbr ++;              \
+          else                          \
             edgeendnbr --;
-#define DGRAPHMATCHSCANFINDSELECT                                               \
-          ((vertgstend < vertlocnnd) &&                                         \
+#define DGRAPHMATCHSCANFINDSELECT       \
+          ((vertgstend < vertlocnnd) && \
            (edgefrenbr -- == 0))
 #include "dgraph_match_scan.c"
 #undef DGRAPHMATCHSCANFINDSELECT
 #undef DGRAPHMATCHSCANCOUNTSELECT
 #undef DGRAPHMATCHSCANCOUNTINIT
+#undef DGRAPHMATCHSCANCOUNTDECL
 #undef DGRAPHMATCHSCANINIT
 #undef DGRAPHMATCHSCANNAME
 
 #define DGRAPHMATCHSCANNAME         dgraphMatchLy /* Local heavy edge matching */
-#define DGRAPHMATCHSCANINIT                                                     \
-  const Gnum * restrict const edloloctax = mateptr->c.finegrafptr->edloloctax;  \
-  if (edloloctax == NULL) {                                                     \
-    dgraphMatchLc (mateptr);                                                    \
-    return;                                                                     \
-  }
-#define DGRAPHMATCHSCANCOUNTINIT                                                \
-      Gnum                edlolocmax;                                           \
-      edlolocmax = 0;                                                           \
+#define DGRAPHMATCHSCANINIT                                                    \
+  const Gnum * restrict const edloloctax = mateptr->c.finegrafptr->edloloctax; \
+  if (edloloctax == NULL) {                                                    \
+    dgraphMatchLc (mateptr);                                                   \
+    return;                                                                    \
+  }                                                                            \
+  probmax = 0;                                    /* Vertices will always be active */
+#define DGRAPHMATCHSCANCOUNTDECL                                               \
+      Gnum                edlolocmax;
+#define DGRAPHMATCHSCANCOUNTINIT                                               \
+      edlolocmax = 0;                                                          \
       probval = 0;                                /* Vertices will always be active */
-#define DGRAPHMATCHSCANCOUNTSELECT                                              \
-          if (vertgstend < vertlocnnd) {                                        \
-            Gnum                edlolocval;                                     \
-            edlolocval = edloloctax[edgelocnum];                                \
-            if (edlolocval > edlolocmax) {                                      \
-              edlolocmax = edlolocval;                                          \
-              edgefrenbr = 1;                                                   \
-            }                                                                   \
-            else if (edlolocval == edlolocmax)                                  \
-              edgefrenbr ++;                                                    \
-          }                                                                     \
-          else                                                                  \
+#define DGRAPHMATCHSCANCOUNTSELECT                                             \
+          if (vertgstend < vertlocnnd) {                                       \
+            Gnum                edlolocval;                                    \
+            edlolocval = edloloctax[edgelocnum];                               \
+            if (edlolocval > edlolocmax) {                                     \
+              edlolocmax = edlolocval;                                         \
+              edgefrenbr = 1;                                                  \
+            }                                                                  \
+            else if (edlolocval == edlolocmax)                                 \
+              edgefrenbr ++;                                                   \
+          }                                                                    \
+          else                                                                 \
             edgeendnbr --;
-#define DGRAPHMATCHSCANFINDSELECT                                               \
-          ((vertgstend < vertlocnnd) &&                                         \
-           (edloloctax[edgelocnum] == edlolocmax) &&                            \
+#define DGRAPHMATCHSCANFINDSELECT                                              \
+          ((vertgstend < vertlocnnd) &&                                        \
+           (edloloctax[edgelocnum] == edlolocmax) &&                           \
            (edgefrenbr -- == 0))
 #include "dgraph_match_scan.c"
 #undef DGRAPHMATCHSCANFINDSELECT
 #undef DGRAPHMATCHSCANCOUNTSELECT
 #undef DGRAPHMATCHSCANCOUNTINIT
+#undef DGRAPHMATCHSCANCOUNTDECL
 #undef DGRAPHMATCHSCANINIT
 #undef DGRAPHMATCHSCANNAME

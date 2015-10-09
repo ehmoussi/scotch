@@ -1,4 +1,4 @@
-/* Copyright 2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -41,6 +41,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 19 jun 2008     **/
 /**                                 to     30 jun 2010     **/
+/**                # Version 6.0  : from : 13 sep 2012     **/
+/**                                 to     13 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -68,20 +70,20 @@
 
 FORTRAN (                                                             \
 METISNAMEU(PARMETIS_V3_PARTKWAY), METISNAMEL(parmetis_v3_partkway), ( \
-const int * const           vtxdist,                                  \
-int * const                 xadj,                                     \
-int * const                 adjncy,                                   \
-int * const                 vwgt,                                     \
-int * const                 adjwgt,                                   \
-const int * const           wgtflag,		                      \
-const int * const           numflag,                                  \
-const int * const           ncon,                                     \
-const int * const           nparts,                                   \
+const SCOTCH_Num * const    vtxdist,                                  \
+SCOTCH_Num * const          xadj,                                     \
+SCOTCH_Num * const          adjncy,                                   \
+SCOTCH_Num * const          vwgt,                                     \
+SCOTCH_Num * const          adjwgt,                                   \
+const SCOTCH_Num * const    wgtflag,		                      \
+const SCOTCH_Num * const    numflag,                                  \
+const SCOTCH_Num * const    ncon,                                     \
+const SCOTCH_Num * const    nparts,                                   \
 const float * const         tpwgts,                                   \
 const float * const         ubvec,                                    \
-const int * const           options,                                  \
-int * const                 edgecut,                                  \
-int * const                 part,                                     \
+const SCOTCH_Num * const    options,                                  \
+SCOTCH_Num * const          edgecut,                                  \
+SCOTCH_Num * const          part,                                     \
 MPI_Comm * const            commptr),                                 \
 (vtxdist, xadj, adjncy, vwgt, adjwgt, wgtflag, numflag, ncon, nparts, tpwgts, ubvec, options, edgecut, part, commptr))
 {
@@ -94,22 +96,22 @@ MPI_Comm * const            commptr),                                 \
 
 FORTRAN (                                                                     \
 METISNAMEU(PARMETIS_V3_PARTGEOMKWAY), METISNAMEL(parmetis_v3_partgeomkway), ( \
-const int * const           vtxdist,                                          \
-int * const                 xadj,                                             \
-int * const                 adjncy,                                           \
-int * const                 vwgt,                                             \
-int * const                 adjwgt,                                           \
-const int * const           wgtflag,		                              \
-const int * const           numflag,                                          \
-const int * const           ndims,                                            \
+const SCOTCH_Num * const    vtxdist,                                          \
+SCOTCH_Num * const          xadj,                                             \
+SCOTCH_Num * const          adjncy,                                           \
+SCOTCH_Num * const          vwgt,                                             \
+SCOTCH_Num * const          adjwgt,                                           \
+const SCOTCH_Num * const    wgtflag,		                              \
+const SCOTCH_Num * const    numflag,                                          \
+const SCOTCH_Num * const    ndims,                                            \
 const float * const         xyz,                                              \
-const int * const           ncon,                                             \
-const int * const           nparts,                                           \
+const SCOTCH_Num * const    ncon,                                             \
+const SCOTCH_Num * const    nparts,                                           \
 const float * const         tpwgts,                                           \
 const float * const         ubvec,                                            \
-const int * const           options,                                          \
-int * const                 edgecut,                                          \
-int * const                 part,                                             \
+const SCOTCH_Num * const    options,                                          \
+SCOTCH_Num * const          edgecut,                                          \
+SCOTCH_Num * const          part,                                             \
 MPI_Comm * const            commptr),                                         \
 (vtxdist, xadj, adjncy, vwgt, adjwgt, wgtflag, numflag, ndims, xyz, ncon, nparts, tpwgts, ubvec, options, edgecut, part, commptr))
 {

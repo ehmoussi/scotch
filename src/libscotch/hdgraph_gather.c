@@ -1,4 +1,4 @@
-/* Copyright 2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -44,6 +44,8 @@
 /**                                 to   : 10 sep 2007     **/
 /**                # Version 5.1  : from : 30 jul 2010     **/
 /**                                 to   : 30 jul 2010     **/
+/**                # Version 6.0  : from : 27 nov 2012     **/
+/**                                 to     27 nov 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -165,24 +167,22 @@ Hgraph * restrict const     cgrfptr)              /* Centralized halo graph */
       cheklocval = 1;
     }
     else {
-      cgrfptr->s.baseval    = dgrfptr->s.baseval;
-      cgrfptr->s.vertnbr    = vertnbr;
-      cgrfptr->s.vertnnd    = vertnbr + dgrfptr->s.baseval;
-      cgrfptr->s.vendtax    = cgrfptr->s.verttax + 1; /* Compact edge array                                   */
-      cgrfptr->s.velosum    = dgrfptr->s.veloglbsum + reduglbtab[2]; /* Halo vertices have unity vertex loads */
-      cgrfptr->s.vlbltax    = NULL;
-      cgrfptr->s.edgenbr    = edgenbr;
-      cgrfptr->s.edlotax    = NULL;
-      cgrfptr->s.edlosum    = edgenbr;
-      cgrfptr->s.proccomm   = MPI_COMM_NULL;      /* Not a multi-sequential gather: no communication possible */
-      cgrfptr->s.procglbnbr =
-      cgrfptr->s.proclocnum = 0;
-      cgrfptr->vnohnbr      = vnohnbr;
-      cgrfptr->vnohnnd      = vnohnbr + dgrfptr->s.baseval;
-      cgrfptr->vnlosum      = dgrfptr->s.veloglbsum;
-      cgrfptr->enohnbr      =
-      cgrfptr->enohsum      = dgrfptr->s.edgeglbnbr;
-      cgrfptr->levlnum      = dgrfptr->levlnum;
+      cgrfptr->s.baseval = dgrfptr->s.baseval;
+      cgrfptr->s.vertnbr = vertnbr;
+      cgrfptr->s.vertnnd = vertnbr + dgrfptr->s.baseval;
+      cgrfptr->s.vendtax = cgrfptr->s.verttax + 1; /* Compact edge array                                   */
+      cgrfptr->s.velosum = dgrfptr->s.veloglbsum + reduglbtab[2]; /* Halo vertices have unity vertex loads */
+      cgrfptr->s.vlbltax = NULL;
+      cgrfptr->s.edgenbr = edgenbr;
+      cgrfptr->s.edlotax = NULL;
+      cgrfptr->s.edlosum = edgenbr;
+      cgrfptr->s.procptr = NULL;                  /* Not a multi-sequential gather: no communication possible */
+      cgrfptr->vnohnbr   = vnohnbr;
+      cgrfptr->vnohnnd   = vnohnbr + dgrfptr->s.baseval;
+      cgrfptr->vnlosum   = dgrfptr->s.veloglbsum;
+      cgrfptr->enohnbr   =
+      cgrfptr->enohsum   = dgrfptr->s.edgeglbnbr;
+      cgrfptr->levlnum   = dgrfptr->levlnum;
     }
   }
   if ((cheklocval == 0) &&

@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2009,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2009-2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : kgraph_map_st.c                         **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module contains the strategy and   **/
 /**                method tables for the multi-way static  **/
@@ -48,7 +49,9 @@
 /**                # Version 4.0  : from : 12 jan 2004     **/
 /**                                 to     05 jan 2005     **/
 /**                # Version 5.1  : from : 04 oct 2009     **/
-/**                                 to     14 jul 2010     **/
+/**                                 to     29 mar 2011     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     28 sep 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -61,13 +64,20 @@
 #include "module.h"
 #include "common.h"
 #include "parser.h"
+#include "gain.h"
+#include "fibo.h"
 #include "graph.h"
-#include "graph_coarsen.h"
 #include "arch.h"
+#include "graph_coarsen.h"
 #include "mapping.h"
 #include "bgraph.h"
 #include "bgraph_bipart_st.h"
 #include "kgraph.h"
+#include "kgraph_map_bd.h"
+#include "kgraph_map_cp.h"
+#include "kgraph_map_df.h"
+#include "kgraph_map_ex.h"
+#include "kgraph_map_fm.h"
 #include "kgraph_map_ml.h"
 #include "kgraph_map_rb.h"
 #include "kgraph_map_st.h"
@@ -76,22 +86,93 @@
 **  The static and global variables.
 */
 
+static Kgraph               kgraphdummy;          /*+ Dummy active graph for offset computations +*/
+
+static union {
+  KgraphMapBdParam          param;
+  StratNodeMethodData       padding;
+} kgraphmapstdefaultbd = { { 3, &stratdummy, &stratdummy } };
+
+static union {
+  StratNodeMethodData       padding;
+} kgraphmapstdefaultcp;
+
+static union {
+  KgraphMapDfParam          param;
+  StratNodeMethodData       padding;
+} kgraphmapstdefaultdf = { { 40, 1.0F, 0.0F } };
+
+static union {
+  KgraphMapExParam          param;
+  StratNodeMethodData       padding;
+} kgraphmapstdefaultex = { { 0.05 } };
+
+static union {
+  KgraphMapFmParam          param;
+  StratNodeMethodData       padding;
+} kgraphmapstdefaultfm = { { 200, ~0, 0.05 } };
+
 static union {
   KgraphMapMlParam          param;
   StratNodeMethodData       padding;
-} kgraphmapstdefaultml = { { 100, 0.8L, GRAPHCOARHEM, &stratdummy, &stratdummy } };
+} kgraphmapstdefaultml = { { 100, 0.8, &stratdummy, &stratdummy, 0 } };
 
 static union {
   KgraphMapRbParam          param;
   StratNodeMethodData       padding;
-} kgraphmapstdefaultrb = { { 1, 1, KGRAPHMAPRBPOLINGSIZE, &stratdummy } };
+} kgraphmapstdefaultrb = { { 1, 1, KGRAPHMAPRBPOLINGSIZE, &stratdummy, 0.05 } };
 
 static StratMethodTab       kgraphmapstmethtab[] = { /* Mapping methods array */
+                              { KGRAPHMAPSTMETHBD, "b",  kgraphMapBd, &kgraphmapstdefaultbd },
+                              { KGRAPHMAPSTMETHCP, "c",  kgraphMapCp, &kgraphmapstdefaultcp },
+                              { KGRAPHMAPSTMETHDF, "d",  kgraphMapDf, &kgraphmapstdefaultdf },
+                              { KGRAPHMAPSTMETHEX, "x",  kgraphMapEx, &kgraphmapstdefaultex },
+                              { KGRAPHMAPSTMETHFM, "f",  kgraphMapFm, &kgraphmapstdefaultfm },
                               { KGRAPHMAPSTMETHML, "m",  kgraphMapMl, &kgraphmapstdefaultml },
                               { KGRAPHMAPSTMETHRB, "r",  kgraphMapRb, &kgraphmapstdefaultrb },
                               { -1,                NULL, NULL,        NULL } };
 
 static StratParamTab        kgraphmapstparatab[] = { /* Method parameter list */
+                              { KGRAPHMAPSTMETHBD,  STRATPARAMINT,    "width",
+                                (byte *) &kgraphmapstdefaultbd.param,
+                                (byte *) &kgraphmapstdefaultbd.param.distmax,
+                                NULL },
+                              { KGRAPHMAPSTMETHBD,  STRATPARAMSTRAT,  "bnd",
+                                (byte *) &kgraphmapstdefaultbd.param,
+                                (byte *) &kgraphmapstdefaultbd.param.stratbnd,
+                                (void *) &kgraphmapststratab },
+                              { KGRAPHMAPSTMETHBD,  STRATPARAMSTRAT,  "org",
+                                (byte *) &kgraphmapstdefaultbd.param,
+                                (byte *) &kgraphmapstdefaultbd.param.stratorg,
+                                (void *) &kgraphmapststratab },
+                              { KGRAPHMAPSTMETHDF,  STRATPARAMINT,    "pass",
+                                (byte *) &kgraphmapstdefaultdf.param,
+                                (byte *) &kgraphmapstdefaultdf.param.passnbr,
+                                NULL },
+                              { KGRAPHMAPSTMETHDF,  STRATPARAMDOUBLE, "dif",
+                                (byte *) &kgraphmapstdefaultdf.param,
+                                (byte *) &kgraphmapstdefaultdf.param.cdifval,
+                                NULL },
+                              { KGRAPHMAPSTMETHDF,  STRATPARAMDOUBLE, "rem",
+                                (byte *) &kgraphmapstdefaultdf.param,
+                                (byte *) &kgraphmapstdefaultdf.param.cremval,
+                                NULL },
+                              { KGRAPHMAPSTMETHEX,  STRATPARAMDOUBLE, "bal",
+                                (byte *) &kgraphmapstdefaultex.param,
+                                (byte *) &kgraphmapstdefaultex.param.kbalval,
+                                (void *) &kgraphmapststratab },
+                              { KGRAPHMAPSTMETHFM,  STRATPARAMINT,    "move",
+                                (byte *) &kgraphmapstdefaultfm.param,
+                                (byte *) &kgraphmapstdefaultfm.param.movenbr,
+                                NULL },
+                              { KGRAPHMAPSTMETHFM,  STRATPARAMINT,    "pass",
+                                (byte *) &kgraphmapstdefaultfm.param,
+                                (byte *) &kgraphmapstdefaultfm.param.passnbr,
+                                NULL },
+                              { KGRAPHMAPSTMETHFM,  STRATPARAMDOUBLE, "bal",
+                                (byte *) &kgraphmapstdefaultfm.param,
+                                (byte *) &kgraphmapstdefaultfm.param.deltval,
+                                NULL },
                               { KGRAPHMAPSTMETHML,  STRATPARAMSTRAT,  "asc",
                                 (byte *) &kgraphmapstdefaultml.param,
                                 (byte *) &kgraphmapstdefaultml.param.stratasc,
@@ -100,29 +181,33 @@ static StratParamTab        kgraphmapstparatab[] = { /* Method parameter list */
                                 (byte *) &kgraphmapstdefaultml.param,
                                 (byte *) &kgraphmapstdefaultml.param.stratlow,
                                 (void *) &kgraphmapststratab },
-                              { KGRAPHMAPSTMETHML,  STRATPARAMCASE,   "type",
-                                (byte *) &kgraphmapstdefaultml.param,
-                                (byte *) &kgraphmapstdefaultml.param.coartype,
-                                (void *) "hscd" },
                               { KGRAPHMAPSTMETHML,  STRATPARAMINT,    "vert",
                                 (byte *) &kgraphmapstdefaultml.param,
                                 (byte *) &kgraphmapstdefaultml.param.coarnbr,
                                 NULL },
                               { KGRAPHMAPSTMETHML,  STRATPARAMDOUBLE, "rat",
                                 (byte *) &kgraphmapstdefaultml.param,
-                                (byte *) &kgraphmapstdefaultml.param.coarrat,
+                                (byte *) &kgraphmapstdefaultml.param.coarval,
                                 NULL },
+                              { KGRAPHMAPSTMETHML,  STRATPARAMCASE,   "type",
+                                (byte *) &kgraphmapstdefaultml.param,
+                                (byte *) &kgraphmapstdefaultml.param.typeval,
+                                (void *) "hscd" },
                               { KGRAPHMAPSTMETHRB,  STRATPARAMCASE,   "job",
                                 (byte *) &kgraphmapstdefaultrb.param,
                                 (byte *) &kgraphmapstdefaultrb.param.flagjobtie,
                                 (void *) "ut" },
+                              { KGRAPHMAPSTMETHRB,  STRATPARAMDOUBLE, "bal",
+                                (byte *) &kgraphmapstdefaultrb.param,
+                                (byte *) &kgraphmapstdefaultrb.param.kbalval,
+                                NULL },
                               { KGRAPHMAPSTMETHRB,  STRATPARAMCASE,   "map",
                                 (byte *) &kgraphmapstdefaultrb.param,
                                 (byte *) &kgraphmapstdefaultrb.param.flagmaptie,
                                 (void *) "ut" },
                               { KGRAPHMAPSTMETHRB,  STRATPARAMCASE,   "poli",
                                 (byte *) &kgraphmapstdefaultrb.param,
-                                (byte *) &kgraphmapstdefaultrb.param.poli,
+                                (byte *) &kgraphmapstdefaultrb.param.polival,
                                 (void *) "rls LS" },
                               { KGRAPHMAPSTMETHRB,  STRATPARAMSTRAT,  "sep",
                                 (byte *) &kgraphmapstdefaultrb.param,
@@ -132,6 +217,22 @@ static StratParamTab        kgraphmapstparatab[] = { /* Method parameter list */
                                 NULL, NULL, NULL } };
 
 static StratParamTab        kgraphmapstcondtab[] = { /* Graph condition parameter table */
+                              { STRATNODECOND,       STRATPARAMINT,    "load",
+                                (byte *) &kgraphdummy,
+                                (byte *) &kgraphdummy.s.velosum,
+                                NULL },
+                              { STRATNODECOND,       STRATPARAMINT,    "levl",
+                                (byte *) &kgraphdummy,
+                                (byte *) &kgraphdummy.levlnum,
+                                NULL },
+                              { STRATNODECOND,       STRATPARAMINT,    "edge",
+                                (byte *) &kgraphdummy,
+                                (byte *) &kgraphdummy.s.edgenbr,
+                                NULL },
+                              { STRATNODECOND,       STRATPARAMINT,    "vert",
+                                (byte *) &kgraphdummy,
+                                (byte *) &kgraphdummy.s.vertnbr,
+                                NULL },
                               { STRATNODENBR,        STRATPARAMINT,    NULL,
                                 NULL, NULL, NULL } };
 
@@ -159,8 +260,14 @@ kgraphMapSt (
 Kgraph * restrict const       grafptr,            /*+ Mapping graph    +*/
 const Strat * restrict const  strat)              /*+ Mapping strategy +*/
 {
-  StratTest           val;
+  StratTest           val;                        /* Result of condition evaluation              */
+  KgraphStore         savetab[2];                 /* Results of the two strategies               */
+  Gnum                comploaddltasu[2];          /* Absolute sum of computation load delta      */
+  ArchDom             domnfrst;                   /* Largest domain in the architecture          */
+  Anum                partnbr;                    /* Number of processors in the target topology */
+  Anum                partnum;
   int                 o;
+  int                 o2;
 
 #ifdef SCOTCH_DEBUG_KGRAPH2
   if (sizeof (Gnum) != sizeof (INT)) {
@@ -209,8 +316,68 @@ const Strat * restrict const  strat)              /*+ Mapping strategy +*/
     case STRATNODEEMPTY :
       break;
     case STRATNODESELECT :
-      errorPrint ("kgraphMapSt: selection operator not implemented for k-way strategies");
-      return      (1);
+      archDomFrst (&grafptr->a, &domnfrst);       /* Get architecture domain   */
+      partnbr = archDomSize (&grafptr->a, &domnfrst); /* Get architecture size */
+
+      if (((kgraphStoreInit (grafptr, &savetab[0])) != 0) || /* Allocate save areas */
+          ((kgraphStoreInit (grafptr, &savetab[1])) != 0)) {
+        errorPrint ("kgraphMapSt: out of memory");
+        kgraphStoreExit (&savetab[0]);
+        return          (1);
+      }
+
+      kgraphStoreSave  (grafptr, &savetab[1]);    /* Save initial partition             */
+      o = kgraphMapSt  (grafptr, strat->data.select.strat[0]); /* Apply first strategy  */
+      kgraphStoreSave  (grafptr, &savetab[0]);    /* Save its result                    */
+      kgraphStoreUpdt  (grafptr, &savetab[1]);    /* Restore initial partition          */
+      o2 = kgraphMapSt (grafptr, strat->data.select.strat[1]); /* Apply second strategy */
+
+      if ((o == 0) || (o2 == 0)) {                /* If at least one method has computed a partition */
+        Gnum                comploadadlt;
+        int                 b0;
+        int                 b1;
+
+        comploaddltasu[0] =
+        comploaddltasu[1] = 0;
+        b0 = o;                                   /* Assume that balance is invalid if partitioning has failed */
+        b1 = o2;
+        for (partnum = 0; partnum < partnbr; partnum ++) {
+          comploadadlt = abs (savetab[0].comploaddlt[partnum]);
+          if (comploadadlt > ((Gnum) ((double) savetab[0].comploadavg[partnum] * savetab[0].kbalval)))
+            b0 |= 1;
+          comploaddltasu[0] += comploadadlt;
+          comploadadlt = abs (grafptr->comploaddlt[partnum]);
+          if (comploadadlt > ((Gnum) ((double) grafptr->comploadavg[partnum] * grafptr->kbalval)))
+            b1 |= 1;
+          comploaddltasu[1] += comploadadlt;
+        }
+        do {                                      /* Do we want to restore partition 0? */
+          if (b0 > b1)
+            break;
+          if (b0 == b1) {                         /* If both are valid or invalid  */
+            if (b0 == 0) {                        /* If both are valid             */
+              if ( (savetab[0].commload >  grafptr->commload) || /* Compare on cut */
+                  ((savetab[0].commload == grafptr->commload) &&
+                   (comploaddltasu[0] > comploaddltasu[1])))
+                break;
+            }
+            else {                                /* If both are invalid               */
+              if ( (comploaddltasu[0] >  comploaddltasu[1]) || /* Compare on imbalance */
+                  ((comploaddltasu[0] == comploaddltasu[1]) &&
+                   (savetab[0].commload > grafptr->commload)))
+                break;
+            }
+          }
+
+          kgraphStoreUpdt (grafptr, &savetab[0]); /* Restore its result */
+        } while (0);
+      }
+      if (o2 < o)                                 /* o = min(o,o2): if one parts, then part   */
+        o = o2;                                   /* Else if one stops, then stop, else error */
+
+      kgraphStoreExit (&savetab[0]);              /* Free both save areas */
+      kgraphStoreExit (&savetab[1]);
+      break;
 #ifdef SCOTCH_DEBUG_KGRAPH1
     case STRATNODEMETHOD :
 #else /* SCOTCH_DEBUG_KGRAPH1 */

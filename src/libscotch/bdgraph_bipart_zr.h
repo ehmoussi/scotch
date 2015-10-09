@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : bdgraph_bipart_zr.h                     **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                                                        **/
 /**   FUNCTION   : Part of a static mapper.                **/
 /**                These lines are the data declarations   **/

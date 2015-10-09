@@ -9,7 +9,7 @@
 **  the libScotchMeTiS library.                         **
 **                                                      **
 *********************************************************/
-/* Copyright 2007,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -54,6 +54,8 @@
 /**                                 to     07 jun 2007     **/
 /**                # Version 5.1  : from : 30 jun 2010     **/
 /**                                 to     30 jun 2010     **/
+/**                # Version 6.0  : from : 13 sep 2012     **/
+/**                                 to     13 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -86,10 +88,10 @@
 **  The function prototypes.
 */
 
-void                        METISNAMEU(METIS_EdgeND) (const int * const, const int * const, const int * const, const int * const, const int * const, int * const, int * const);
-void                        METISNAMEU(METIS_NodeND) (const int * const, const int * const, const int * const, const int * const, const int * const, int * const, int * const);
-void                        METISNAMEU(METIS_NodeWND) (const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, int * const, int * const);
+void                        METISNAMEU(METIS_EdgeND) (const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, SCOTCH_Num * const, SCOTCH_Num * const);
+void                        METISNAMEU(METIS_NodeND) (const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, SCOTCH_Num * const, SCOTCH_Num * const);
+void                        METISNAMEU(METIS_NodeWND) (const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, SCOTCH_Num * const, SCOTCH_Num * const);
 
-void                        METISNAMEU(METIS_PartGraphKway) (const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, int * const, int * const);
-void                        METISNAMEU(METIS_PartGraphRecursive) (const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, int * const, int * const);
-void                        METISNAMEU(METIS_PartGraphVKway) (const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, const int * const, int * const, int * const);
+void                        METISNAMEU(METIS_PartGraphKway) (const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, SCOTCH_Num * const, SCOTCH_Num * const);
+void                        METISNAMEU(METIS_PartGraphRecursive) (const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, SCOTCH_Num * const, SCOTCH_Num * const);
+void                        METISNAMEU(METIS_PartGraphVKway) (const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, const SCOTCH_Num * const, SCOTCH_Num * const, SCOTCH_Num * const);

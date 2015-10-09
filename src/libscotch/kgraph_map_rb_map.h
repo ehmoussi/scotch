@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : kgraph_map_rb_map.h                     **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/
 /**                for the Dual Recursive Bipartitioning   **/
@@ -61,6 +62,8 @@
 /**                                 to     05 may 2006     **/
 /**                # Version 5.1  : from : 30 sep 2008     **/
 /**                                 to     04 nov 2010     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     28 aug 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -97,21 +100,23 @@ typedef struct KgraphMapRbMapJob_ {
   Gnum                      priolvl;              /*+ Priority level computed for this job     +*/
   ArchDom                   domnorg;              /*+ Domain to which the vertices belong      +*/
   Graph                     grafdat;              /*+ Job graph data (may be clone of another) +*/
+  Anum                      vflonbr;              /*+ Number of fixed vertex load slots        +*/
+  KgraphMapRbVflo *         vflotab;              /*+ Partial array of fixed vertex load slots +*/
 } KgraphMapRbMapJob;
 
 /*+ This structure defines the working data,
     for easier parameter passing.            +*/
 
 typedef struct KgraphMapRbMapPoolData_ {
-  int                       flagval;              /*+ Pool flag value                              +*/
-  Graph *                   grafptr;              /*+ Pointer to top graph                         +*/
-  KgraphMapRbMapPoolLink    linktab[2];           /*+ Lists of jobs in pools                       +*/
-  KgraphMapRbMapPoolLink *  pooltab[2];           /*+ Pointer to pools (same if tied)              +*/
-  KgraphMapRbPolicy         polival;              /*+ Job selection policy                         +*/
-  KgraphMapRbMapJob *       jobtab;               /*+ Job table                                    +*/
-  Mapping *                 mappptr;              /*+ Pointer to original mapping: current state   +*/
-  ArchDom *                 domntab;              /*+ Secondary domain array if untied mapping     +*/
-  ArchDom *                 domntmp;              /*+ Pointer to original domain array for exiting +*/
+  int                       flagval;              /*+ Pool flag value                            +*/
+  KgraphMapRbPolicy         polival;              /*+ Job selection policy                       +*/
+  const Graph *             grafptr;              /*+ Pointer to top graph                       +*/
+  const Anum *              pfixtax;              /*+ Pointer to fixed part array                +*/
+  KgraphMapRbMapPoolLink    linktab[2];           /*+ Lists of jobs in pools                     +*/
+  KgraphMapRbMapPoolLink *  pooltab[2];           /*+ Pointer to pools (same if tied)            +*/
+  ArchDom *                 domntab[2];           /*+ Pointer to domain arrays (same if tied)    +*/
+  KgraphMapRbMapJob *       jobtab;               /*+ Job table                                  +*/
+  Mapping *                 mappptr;              /*+ Pointer to original mapping: current state +*/
 } KgraphMapRbMapPoolData;
 
 /*
@@ -122,7 +127,7 @@ typedef struct KgraphMapRbMapPoolData_ {
 #define static
 #endif
 
-static int                  kgraphMapRbMapPoolInit (KgraphMapRbMapPoolData * restrict const, Kgraph * restrict const, const KgraphMapRbParam * restrict const);
+static int                  kgraphMapRbMapPoolInit (KgraphMapRbMapPoolData * restrict const, const KgraphMapRbData * restrict const);
 static void                 kgraphMapRbMapPoolExit (KgraphMapRbMapPoolData * restrict const poolptr);
 static void                 kgraphMapRbMapPoolAdd (KgraphMapRbMapPoolLink * restrict const, KgraphMapRbMapJob * const);
 static KgraphMapRbMapJob *  kgraphMapRbMapPoolGet (KgraphMapRbMapPoolData * restrict const);
@@ -130,7 +135,7 @@ static void                 kgraphMapRbMapPoolFrst (KgraphMapRbMapPoolData * con
 static void                 kgraphMapRbMapPoolUpdt1 (KgraphMapRbMapPoolData * const, const KgraphMapRbMapJob * const, const GraphPart * const, KgraphMapRbMapJob * const, const GraphPart);
 static void                 kgraphMapRbMapPoolUpdt2 (KgraphMapRbMapPoolData * const, const KgraphMapRbMapJob * const, const GraphPart * const, KgraphMapRbMapJob * const, KgraphMapRbMapJob * const);
 
-int                         kgraphMapRbMap      (Kgraph * const, const KgraphMapRbParam * const);
+int                         kgraphMapRbMap      (const KgraphMapRbData * restrict const, const Graph * restrict const, const Anum, KgraphMapRbVflo * restrict const);
 
 static int                  kgraphMapRbMapPoolResize (KgraphMapRbMapPoolData * restrict const);
 
@@ -141,12 +146,3 @@ static int                  kgraphMapRbMapPoolResize (KgraphMapRbMapPoolData * r
 */
 
 #define kgraphMapRbMapPoolEmpty(poolptr) ((poolptr)->pooltab[0]->next == &kgraphmaprbmappooldummy)
-
-#define kgraphMapRbMapPoolSwap(poolptr) { ArchDom *                domntmp;                 \
-                                          KgraphMapRbMapPoolLink * linktmp;                 \
-                                          linktmp = (poolptr)->pooltab[0];                  \
-                                          (poolptr)->pooltab[0] = (poolptr)->pooltab[1];    \
-                                          (poolptr)->pooltab[1] = linktmp;                  \
-                                          domntmp = (poolptr)->mappptr->domntab;            \
-                                          (poolptr)->mappptr->domntab = (poolptr)->domntab; \
-                                          (poolptr)->domntab = domntmp; }

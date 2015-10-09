@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_tleaf.h                            **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : These lines are the data declaration    **/
 /**                for the tree-leaf pseudo-graph target   **/
@@ -61,6 +62,8 @@
 /**                                 to     10 dec 2003     **/
 /**                # Version 5.1  : from : 21 jan 2008     **/
 /**                                 to     24 jun 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     03 jul 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -68,13 +71,19 @@
 **  The type and structure definitions.
 */
 
+#ifndef ARCH_TLEAF_H_STRUCT
+#define ARCH_TLEAF_H_STRUCT
+
 /** The Tree-Leaf graph definitions. **/
 
 typedef struct ArchTleaf_ {
+  Anum                      termnbr;              /*+ Number of terminal domains in architecture   +*/
   Anum                      levlnbr;              /*+ Number of levels                             +*/
-  Anum                      sizeval;              /*+ Number of terminal domains in architecture   +*/
   Anum *                    sizetab;              /*+ Array of cluster sizes, per descending level +*/
   Anum *                    linktab;              /*+ Value of extra-cluster link costs            +*/
+  Anum                      permnbr;              /*+ Number of label permutation indices          +*/
+  Anum *                    permtab;              /*+ Label permutation array                      +*/
+  Anum *                    peritab;              /*+ Invertse label permutation array             +*/
 } ArchTleaf;
 
 typedef struct ArchTleafDom_ {
@@ -83,9 +92,15 @@ typedef struct ArchTleafDom_ {
   Anum                      indxnbr;              /*+ Number of indices in domain +*/
 } ArchTleafDom;
 
+#endif /* ARCH_TLEAF_H_STRUCT */
+
 /*
 **  The function prototypes.
 */
+
+#ifndef ARCH_NOPROTO
+#ifndef ARCH_TLEAF_H_PROTO
+#define ARCH_TLEAF_H_PROTO
 
 #ifndef ARCH_TLEAF
 #define static
@@ -103,8 +118,35 @@ int                         archTleafDomFrst    (const ArchTleaf * const, ArchTl
 int                         archTleafDomLoad    (const ArchTleaf * const, ArchTleafDom * restrict const, FILE * restrict const);
 int                         archTleafDomSave    (const ArchTleaf * const, const ArchTleafDom * const, FILE * restrict const);
 int                         archTleafDomBipart  (const ArchTleaf * const, const ArchTleafDom * const, ArchTleafDom * restrict const, ArchTleafDom * restrict const);
+int                         archTleafDomIncl    (const ArchTleaf * const, const ArchTleafDom * const, const ArchTleafDom * const);
 #ifdef SCOTCH_PTSCOTCH
 int                         archTleafDomMpiType (const ArchTleaf * const, MPI_Datatype * const);
 #endif /* SCOTCH_PTSCOTCH */
 
+int                         archLtleafArchLoad  (ArchTleaf * restrict const, FILE * restrict const);
+int                         archLtleafArchSave  (const ArchTleaf * const, FILE * restrict const);
+ArchDomNum                  archLtleafDomNum    (const ArchTleaf * const, const ArchTleafDom * const);
+int                         archLtleafDomTerm   (const ArchTleaf * const, ArchTleafDom * restrict const, const ArchDomNum);
+#define archLtleafDomWght           archLtleafDomSize
+
 #undef static
+
+/*
+**  The macro definitions.
+*/
+
+#define ArchLtleaf                  ArchTleaf
+#define ArchLtleafDom               ArchTleafDom
+
+#define archLtleafArchFree          archTleafArchFree
+#define archLtleafDomSize           archTleafDomSize
+#define archLtleafDomDist           archTleafDomDist
+#define archLtleafDomFrst           archTleafDomFrst
+#define archLtleafDomLoad           archTleafDomLoad
+#define archLtleafDomSave           archTleafDomSave
+#define archLtleafDomBipart         archTleafDomBipart
+#define archLtleafDomIncl           archTleafDomIncl
+#define archLtleafDomMpiType        archTleafDomMpiType
+
+#endif /* ARCH_TLEAF_H_PROTO */
+#endif /* ARCH_NOPROTO       */

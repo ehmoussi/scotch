@@ -1,4 +1,4 @@
-/* Copyright 2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2008,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : kdgraph.h                               **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                Francois PELLEGRINI                     **/
 /**                                                        **/
 /**   FUNCTION   : Part of a static mapper.                **/
@@ -43,6 +43,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 31 mar 2008     **/
 /**                                 to     04 nov 2010     **/
+/**                # Version 6.0  : from : 29 aug 2012     **/
+/**                                 to     29 aug 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -80,6 +82,5 @@ int                         kdgraphFold2        (const Kdgraph *, const int, Kdg
 #ifdef KGRAPH_H
 int                         kdgraphGather       (Kdgraph *, Kgraph *);
 #endif /* KGRAPH_H */
-int                         kdgraphInducePart   (Kdgraph * restrict const, GraphPart * const, const Gnum, const GraphPart, Kdgraph * restrict const);
 
 #undef static

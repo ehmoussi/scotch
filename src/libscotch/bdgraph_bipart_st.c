@@ -1,4 +1,4 @@
-/* Copyright 2007-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -33,7 +33,7 @@
 /**                                                        **/
 /**   NAME       : bdgraph_bipart_st.c                     **/
 /**                                                        **/
-/**   AUTHOR     : Jun-Ho HER                              **/
+/**   AUTHOR     : Jun-Ho HER (v6.0)                       **/
 /**                Francois PELLEGRINI                     **/
 /**                                                        **/
 /**   FUNCTION   : This module contains the strategy and   **/
@@ -41,7 +41,9 @@
 /**                bipartitioning methods.                 **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 10 sep 2007     **/
-/**                                 to   : 14 aug 2010     **/
+/**                                 to   : 15 apr 2011     **/
+/**                # Version 6.0  : from : 11 sep 2011     **/
+/**                                 to   : 28 sep 2014     **/
 /**                                                        **/
 /************************************************************/
 
@@ -84,7 +86,7 @@ static union {
 static union {
   BdgraphBipartDfParam      param;
   StratNodeMethodData       padding;
-} bdgraphbipartstdefaultdf = { { 500, 1.0, 0.0, 0.0 } };
+} bdgraphbipartstdefaultdf = { { 500, 1.0, 0.0, BDGRAPHBIPARTDFTYPEBAL } };
 
 static union {
   BdgraphBipartExParam      param;
@@ -94,7 +96,7 @@ static union {
 static union {
   BdgraphBipartMlParam      param;
   StratNodeMethodData       padding;
-} bdgraphbipartstdefaultml = { { 5, 1000, 100, 0, 0.8L, &stratdummy, &stratdummy, &stratdummy} };
+} bdgraphbipartstdefaultml = { { 5, 1000, 2, 10000, 0.8L, &stratdummy, &stratdummy, &stratdummy} };
 
 static union {
   BdgraphBipartSqParam      param;
@@ -135,6 +137,10 @@ static StratParamTab        bdgraphbipartstparatab[] = { /* Method parameter lis
                                 (byte *) &bdgraphbipartstdefaultdf.param,
                                 (byte *) &bdgraphbipartstdefaultdf.param.cremval,
                                 NULL },
+                              { BDGRAPHBIPARTSTMETHDF,  STRATPARAMCASE,   "type",
+                                (byte *) &bdgraphbipartstdefaultdf.param,
+                                (byte *) &bdgraphbipartstdefaultdf.param.typeval,
+                                (void *) "bk" },
                               { BDGRAPHBIPARTSTMETHEX,  STRATPARAMINT,    "sbbt",
                                 (byte *) &bdgraphbipartstdefaultex.param,
                                 (byte *) &bdgraphbipartstdefaultex.param.sbbtnbr,
@@ -163,6 +169,14 @@ static StratParamTab        bdgraphbipartstparatab[] = { /* Method parameter lis
                                 (byte *) &bdgraphbipartstdefaultml.param,
                                 (byte *) &bdgraphbipartstdefaultml.param.coarnbr,
                                 NULL },
+                              { BDGRAPHBIPARTSTMETHML,  STRATPARAMINT,    "dvert",
+                                (byte *) &bdgraphbipartstdefaultml.param,
+                                (byte *) &bdgraphbipartstdefaultml.param.foldmax,
+                                NULL },
+                              { BDGRAPHBIPARTSTMETHML,  STRATPARAMCASE,   "fold",
+                                (byte *) &bdgraphbipartstdefaultml.param,
+                                (byte *) &bdgraphbipartstdefaultml.param.foldval,
+                                (void *) "nfd" },
                               { BDGRAPHBIPARTSTMETHML,  STRATPARAMDOUBLE, "rat",
                                 (byte *) &bdgraphbipartstdefaultml.param,
                                 (byte *) &bdgraphbipartstdefaultml.param.coarrat,
@@ -175,6 +189,26 @@ static StratParamTab        bdgraphbipartstparatab[] = { /* Method parameter lis
                                 NULL, NULL, NULL } };
 
 static StratParamTab        bdgraphbipartstcondtab[] = { /* Active graph condition parameter table */
+                              { STRATNODECOND,       STRATPARAMDOUBLE, "bal",
+                                (byte *) &bdgraphdummy,
+                                (byte *) &bdgraphdummy.bbalglbval,
+                                NULL },
+                              { STRATNODECOND,       STRATPARAMINT,    "edge",
+                                (byte *) &bdgraphdummy,
+                                (byte *) &bdgraphdummy.s.edgeglbnbr,
+                                NULL },
+                              { STRATNODECOND,       STRATPARAMINT,    "levl",
+                                (byte *) &bdgraphdummy,
+                                (byte *) &bdgraphdummy.levlnum,
+                                NULL },
+                              { STRATNODECOND,       STRATPARAMINT,    "lmin0",
+                                (byte *) &bdgraphdummy,
+                                (byte *) &bdgraphdummy.compglbload0min,
+                                NULL },
+                              { STRATNODECOND,       STRATPARAMINT,    "lmax0",
+                                (byte *) &bdgraphdummy,
+                                (byte *) &bdgraphdummy.compglbload0max,
+                                NULL },
                               { STRATNODECOND,       STRATPARAMINT,    "load",
                                 (byte *) &bdgraphdummy,
                                 (byte *) &bdgraphdummy.s.veloglbsum,
@@ -183,18 +217,6 @@ static StratParamTab        bdgraphbipartstcondtab[] = { /* Active graph conditi
                                 (byte *) &bdgraphdummy,
                                 (byte *) &bdgraphdummy.compglbload0,
                                 NULL },
-                              { STRATNODECOND,       STRATPARAMINT,    "edge",
-                                (byte *) &bdgraphdummy,
-                                (byte *) &bdgraphdummy.s.edgeglbnbr,
-                                NULL },
-                              { STRATNODECOND,       STRATPARAMINT,    "vert",
-                                (byte *) &bdgraphdummy,
-                                (byte *) &bdgraphdummy.s.vertglbnbr,
-                                NULL },
-                              { STRATNODECOND,       STRATPARAMINT,    "levl",
-                                (byte *) &bdgraphdummy,
-                                (byte *) &bdgraphdummy.levlnum,
-                                NULL },
                               { STRATNODECOND,       STRATPARAMINT,    "proc",
                                 (byte *) &bdgraphdummy,
                                 (byte *) &bdgraphdummy.s.procglbnbr,
@@ -202,6 +224,10 @@ static StratParamTab        bdgraphbipartstcondtab[] = { /* Active graph conditi
                               { STRATNODECOND,       STRATPARAMINT,    "rank",
                                 (byte *) &bdgraphdummy,
                                 (byte *) &bdgraphdummy.s.proclocnum,
+                                NULL },
+                              { STRATNODECOND,       STRATPARAMINT,    "vert",
+                                (byte *) &bdgraphdummy,
+                                (byte *) &bdgraphdummy.s.vertglbnbr,
                                 NULL },
                               { STRATNODENBR,        STRATPARAMINT,    NULL,
                                 NULL, NULL, NULL } };
@@ -300,11 +326,38 @@ const Strat * restrict const  strat)              /*+ Bipartitioning strategy   
       bdgraphStoreUpdt     (grafptr, &savetab[1]); /* Restore initial bipartition           */
       o2 = bdgraphBipartSt (grafptr, strat->data.select.strat[1]); /* Apply second strategy */
 
-      if ((o == 0) || (o2 == 0)) {                /* If at least one method did bipartition     */
-        if ( (savetab[0].commglbload <  grafptr->commglbload) || /* If first strategy is better */
-            ((savetab[0].commglbload == grafptr->commglbload) &&
-             (abs (savetab[0].compglbload0dlt) < abs (grafptr->compglbload0dlt))))
+      if ((o == 0) || (o2 == 0)) {                /* If at least one method did bipartition */
+        Gnum                compglbload0;
+	int                 b0;
+        int                 b1;
+
+        compglbload0 = grafptr->compglbload0avg + savetab[0].compglbload0dlt;
+        b0 = ((compglbload0 < grafptr->compglbload0min) ||
+              (compglbload0 > grafptr->compglbload0max)) ? 1 : o;
+        compglbload0 = grafptr->compglbload0avg + savetab[1].compglbload0dlt;
+        b1 = ((compglbload0 < grafptr->compglbload0min) ||
+              (compglbload0 > grafptr->compglbload0max)) ? 1 : o2;
+
+        do {                                      /* Do we want to restore partition 0 ? */
+          if (b0 > b1)
+            break;
+          if (b0 == b1) {                         /* If both are valid or invalid        */
+            if (b0 == 0) {                        /* If both are valid                   */
+              if ( (savetab[0].commglbload >  grafptr->commglbload) || /* Compare on cut */
+                  ((savetab[0].commglbload == grafptr->commglbload) &&
+                   (abs (savetab[0].compglbload0dlt) > abs (grafptr->compglbload0dlt))))
+                break;
+            }
+            else {                                /* If both are invalid */
+              if ( (abs (savetab[0].compglbload0dlt) >  abs (grafptr->compglbload0dlt)) || /* Compare on imbalance */
+                  ((abs (savetab[0].compglbload0dlt) == abs (grafptr->compglbload0dlt)) &&
+                   (savetab[0].commglbload > grafptr->commglbload)))
+                break;
+            }
+          }
+
           bdgraphStoreUpdt (grafptr, &savetab[0]); /* Restore its result */
+        }  while (0);
       }
       if (o2 < o)                                 /* o = min(o,o2): if one biparts, then bipart */
         o = o2;                                   /* Else if one stops, then stop, else error   */

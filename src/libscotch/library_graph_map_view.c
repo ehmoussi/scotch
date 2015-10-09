@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2011,2015 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : library_graph_map_view.c                **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module is the API for the mapping  **/
 /**                routines of the libSCOTCH library.      **/
@@ -50,6 +51,8 @@
 /**                                 to     03 apr 2008     **/
 /**                # Version 5.1  : from : 27 jul 2008     **/
 /**                                 to     11 aug 2010     **/
+/**                # Version 6.0  : from : 03 mar 2011     **/
+/**                                 to     01 mar 2015     **/
 /**                                                        **/
 /************************************************************/
 
@@ -78,24 +81,37 @@
 /*                                  */
 /************************************/
 
-/*+ This routine writes mapping statistics
-*** to the given stream.
+/*+ This routine writes standard or raw
+*** mapping or remapping statistics to
+*** the given stream.
 *** It returns:
 *** - 0   : on success.
 *** - !0  : on error.
 +*/
 
+static
 int
-SCOTCH_graphMapView (
-const SCOTCH_Graph * const    libgrafptr,
-const SCOTCH_Mapping * const  libmappptr,
-FILE * const                  stream)
+graphMapView2 (
+const SCOTCH_Graph * const    libgrafptr,         /*+ Ordered graph                                    +*/
+const SCOTCH_Mapping * const  libmappptr,         /*+ Computed mapping                                 +*/
+const SCOTCH_Mapping * const  libmapoptr,         /*+ Old mapping (equal to NULL if no repartitioning) +*/
+const double                  emraval,            /*+ Edge migration ratio                             +*/
+SCOTCH_Num *                  vmlotab,            /*+ Vertex migration cost array                      +*/
+Gnum                          flagval,            /*+ 0 : standard output, !0 : raw output for curves  +*/
+FILE * const                  stream)             /*+ Output stream                                    +*/
 {
   const Graph * restrict    grafptr;
-  const Mapping * restrict  mappptr;
+  const Arch * restrict     archptr;
+  LibMapping * restrict     lmapptr;
+  LibMapping * restrict     lmaoptr;
+  Mapping                   mappdat;
   Anum * restrict           parttax;              /* Part array                                   */
+  Anum * restrict           parotax;              /* Old part array                               */
   MappingSort * restrict    domntab;              /* Pointer to domain sort array                 */
   ArchDom                   domnfrst;             /* Largest domain in architecture               */
+  ArchDom                   domnorg;              /* Vertex domain                                */
+  ArchDom                   domnend;              /* End domain                                   */
+  ArchDom                   domnold;              /* Vertex old domain                            */
   Anum                      tgtnbr;               /* Number of processors in target topology      */
   Anum                      mapnbr;               /* Number of processors effectively used        */
   Anum                      mapnum;
@@ -122,6 +138,11 @@ FILE * const                  stream)
   Gnum                      diammin;
   Gnum                      diammax;
   Gnum                      diamsum;
+  Gnum                      migrnbr;
+  double                    migrloadavg;
+  double                    migrdistavg;
+  double                    migrcostsum;
+  Gnum * restrict           vmlotax;
 
   const Gnum * restrict const verttax = ((Graph *) libgrafptr)->verttax;
   const Gnum * restrict const vendtax = ((Graph *) libgrafptr)->vendtax;
@@ -129,36 +150,69 @@ FILE * const                  stream)
   const Gnum * restrict const edgetax = ((Graph *) libgrafptr)->edgetax;
   const Gnum * restrict const edlotax = ((Graph *) libgrafptr)->edlotax;
 
-  grafptr = (Graph *) libgrafptr;
-  mappptr = &((LibMapping *) libmappptr)->m;
+#ifdef SCOTCH_DEBUG_LIBRARY1
+  if (sizeof (SCOTCH_Mapping) < sizeof (LibMapping)) {
+    errorPrint ("SCOTCH_graphMapView: internal error");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_LIBRARY1 */
+
+  lmapptr = (LibMapping *) libmappptr;
+  grafptr = lmapptr->grafptr;
+
+#ifdef SCOTCH_DEBUG_LIBRARY1
+  if ((Graph *) libgrafptr != grafptr) {
+    errorPrint ("SCOTCH_graphMapView: input graph must be the same as mapping graph");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_LIBRARY1 */
 
   if ((grafptr->vertnbr == 0) ||                  /* Return if nothing to do */
       (grafptr->edgenbr == 0))
     return (0);
 
+  if (libmapoptr != NULL) {
+    lmaoptr = (LibMapping *) libmapoptr;
+    parotax = lmaoptr->parttab;
+  }
+  else {
+    lmaoptr = NULL;
+    parotax = NULL;
+  }
+
+  if (vmlotab != NULL)
+    vmlotax = (Gnum *) vmlotab - grafptr->baseval;
+  else
+    vmlotax = NULL;
+
+#ifdef SCOTCH_DEBUG_LIBRARY1
+  if (lmapptr->parttab == NULL) {
+    errorPrint ("SCOTCH_graphMapView: the mapping given in input must contain a valid partition array");
+    return     (1);
+  }
+#endif /* SCOTCH_DEBUG_LIBRARY1 */
+  archptr = lmapptr->archptr;
+  parttax = lmapptr->parttab;
+
   if (memAllocGroup ((void **) (void *)
                      &domntab, (size_t) ((grafptr->vertnbr + 1) * sizeof (MappingSort)),
-                     &parttax, (size_t) (grafptr->vertnbr       * sizeof (Anum)),
                      &nghbtab, (size_t) ((grafptr->vertnbr + 2) * sizeof (Anum)), NULL) == NULL) {
     errorPrint ("SCOTCH_graphMapView: out of memory");
     return     (1);
   }
 
-  memSet (parttax, ~0, grafptr->vertnbr * sizeof (Anum));
-
   for (vertnum = 0; vertnum < grafptr->vertnbr; vertnum ++) {
-    parttax[vertnum]      =
-    domntab[vertnum].labl = archDomNum (&mappptr->archdat, mapDomain (mappptr, vertnum + grafptr->baseval));
+    domntab[vertnum].labl = parttax[vertnum];
     domntab[vertnum].peri = vertnum + grafptr->baseval; /* Build inverse permutation */
   }
+  parttax -= grafptr->baseval;
   domntab[grafptr->vertnbr].labl = ARCHDOMNOTTERM; /* TRICK: avoid testing (i+1)   */
   domntab[grafptr->vertnbr].peri = ~0;            /* Prevent Valgrind from yelling */
-  parttax -= grafptr->baseval;                    /* From now on, base part array  */
 
   intSort2asc2 (domntab, grafptr->vertnbr);       /* Sort domain label array by increasing target labels */
 
-  archDomFrst (&mappptr->archdat, &domnfrst);     /* Get architecture domain    */
-  tgtnbr = archDomSize (&mappptr->archdat, &domnfrst); /* Get architecture size */
+  archDomFrst (archptr, &domnfrst);               /* Get architecture domain */
+  tgtnbr = archDomSize (archptr, &domnfrst);      /* Get architecture size   */
 
   mapsum  = 0;
   mapnbr  = 0;
@@ -196,7 +250,7 @@ FILE * const                  stream)
 
   if (mapnbr > tgtnbr) {                          /* If more subdomains than architecture size */
 #ifdef SCOTCH_DEBUG_MAP2
-    if (! archVar (&mappptr->archdat)) {          /* If not a variable-sized architecture */
+    if (! archVar (archptr)) {                    /* If not a variable-sized architecture */
       errorPrint ("SCOTCH_graphMapView: invalid mapping");
       memFree    (domntab);                       /* Free group leader */
       return     (1);
@@ -205,16 +259,18 @@ FILE * const                  stream)
     tgtnbr = mapnbr;                              /* Assume it is a variable-sized architecture */
   }
 
-  fprintf (stream, "M\tProcessors " GNUMSTRING "/" GNUMSTRING " (%g)\n",
-           (Gnum) mapnbr,
-           (Gnum) tgtnbr,
-           (double) mapnbr / (double) tgtnbr);
-  fprintf (stream, "M\tTarget min=" GNUMSTRING "\tmax=" GNUMSTRING "\tavg=%g\tdlt=%g\tmaxavg=%g\n",
-           (Gnum) mapmin,
-           (Gnum) mapmax,
-           mapavg,
-           mapdlt,
-           mapmmy);
+  if (flagval == 0) {
+    fprintf (stream, "M\tProcessors " GNUMSTRING "/" GNUMSTRING " (%g)\n",
+             (Gnum) mapnbr,
+             (Gnum) tgtnbr,
+             (double) mapnbr / (double) tgtnbr);
+    fprintf (stream, "M\tTarget min=" GNUMSTRING "\tmax=" GNUMSTRING "\tavg=%g\tdlt=%g\tmaxavg=%g\n",
+             (Gnum) mapmin,
+             (Gnum) mapmax,
+             mapavg,
+             mapdlt,
+             mapmmy);
+  }
 
   nghbnbr = 0;
   nghbmin = ANUMMAX;
@@ -277,12 +333,14 @@ FILE * const                  stream)
     }
   }
 
-  fprintf (stream, "M\tNeighbors min=" GNUMSTRING "\tmax=" GNUMSTRING "\tsum=" GNUMSTRING "\n",
-           (Gnum) nghbmin,
-           (Gnum) nghbmax,
-           (Gnum) nghbsum);
+  if (flagval == 0) {
+    fprintf (stream, "M\tNeighbors min=" GNUMSTRING "\tmax=" GNUMSTRING "\tsum=" GNUMSTRING "\n",
+             (Gnum) nghbmin,
+             (Gnum) nghbmax,
+             (Gnum) nghbsum);
+  }
 
-  memset (commdist, 0, 256 * sizeof (Gnum));      /* Initialize the data */
+  memSet (commdist, 0, 256 * sizeof (Gnum));      /* Initialize the data */
   commload  =
   commdilat =
   commexpan = 0;
@@ -297,7 +355,9 @@ FILE * const                  stream)
          edgenum < vendtax[vertnum]; edgenum ++) {
       if (parttax[edgetax[edgenum]] == ~0)
         continue;
-      distval = archDomDist (&mappptr->archdat, mapDomain (mappptr, vertnum), mapDomain (mappptr, edgetax[edgenum]));
+      archDomTerm (archptr, &domnorg, parttax[vertnum]); /* Get terminal domains */
+      archDomTerm (archptr, &domnend, parttax[edgetax[edgenum]]);
+      distval = archDomDist (archptr, &domnorg, &domnend);
       if (edlotax != NULL)                        /* Get edge weight if any */
         edloval = edlotax[edgenum];
       commdist[(distval > 255) ? 255 : distval] += edloval;
@@ -307,29 +367,57 @@ FILE * const                  stream)
     }
   }
 
-  fprintf (stream, "M\tCommDilat=%f\t(" GNUMSTRING ")\n", /* Print expansion parameters */
-           (double) commdilat / grafptr->edgenbr,
-           (Gnum) (commdilat / 2));
-  fprintf (stream, "M\tCommExpan=%f\t(" GNUMSTRING ")\n",
-           ((commload == 0) ? (double) 0.0L
-                            : (double) commexpan / (double) commload),
-           (Gnum) (commexpan / 2));
-  fprintf (stream, "M\tCommCutSz=%f\t(" GNUMSTRING ")\n",
-           ((commload == 0) ? (double) 0.0L
-                            : (double) (commload - commdist[0]) / (double) commload),
-           (Gnum) ((commload - commdist[0]) / 2));
-  fprintf (stream, "M\tCommDelta=%f\n",
-           (((double) commload  * (double) commdilat) == 0.0L)
-           ? (double) 0.0L
-           : ((double) commexpan * (double) grafptr->edgenbr) /
-             ((double) commload  * (double) commdilat));
+  if (lmaoptr != NULL) {
+    migrnbr = 0;
+    migrdistavg = 0;
+    migrloadavg = 0;
+    migrcostsum = 0;
+
+    for (vertnum = grafptr->baseval; vertnum < grafptr->vertnnd; vertnum ++) {
+      if ((parttax[vertnum] == -1) || (parotax[vertnum] == -1))
+        continue;
+      if (parotax[vertnum] != parttax[vertnum]) {
+        migrnbr ++;
+        archDomTerm (archptr, &domnorg, parotax[vertnum]); /* Get terminal domains */
+        archDomTerm (archptr, &domnold, parotax[vertnum]);
+        migrdistavg += archDomDist (archptr, &domnorg, &domnold);
+        migrloadavg += (grafptr->velotax == NULL) ? 1 : grafptr->velotax[vertnum];
+        migrcostsum += emraval * ((vmlotax != NULL) ? vmlotax[vertnum] : 1);
+      }
+    }
+    if (migrnbr > 0) {
+      migrdistavg /= migrnbr;
+      migrloadavg /= migrnbr;
+    }
+  } 
+
+  if (flagval == 0) {
+    fprintf (stream, "M\tCommDilat=%f\t(" GNUMSTRING ")\n", /* Print expansion parameters */
+             (double) commdilat / grafptr->edgenbr,
+             (Gnum) (commdilat / 2));
+    fprintf (stream, "M\tCommExpan=%f\t(" GNUMSTRING ")\n",
+             ((commload == 0) ? (double) 0.0L
+                              : (double) commexpan / (double) commload),
+             (Gnum) (commexpan / 2));
+    fprintf (stream, "M\tCommCutSz=%f\t(" GNUMSTRING ")\n",
+             ((commload == 0) ? (double) 0.0L
+                              : (double) (commload - commdist[0]) / (double) commload),
+             (Gnum) ((commload - commdist[0]) / 2));
+    fprintf (stream, "M\tCommDelta=%f\n",
+             (((double) commload  * (double) commdilat) == 0.0L)
+             ? (double) 0.0L
+             : ((double) commexpan * (double) grafptr->edgenbr) /
+               ((double) commload  * (double) commdilat));
+  }
 
   for (distmax = 255; distmax != -1; distmax --)  /* Find longest distance */
     if (commdist[distmax] != 0)
       break;
-  for (distval = 0; distval <= distmax; distval ++) /* Print distance histogram */
-    fprintf (stream, "M\tCommLoad[" ANUMSTRING "]=%f\n",
-             (Anum) distval, (double) commdist[distval] / (double) commload);
+  if (flagval == 0) {
+    for (distval = 0; distval <= distmax; distval ++) /* Print distance histogram */
+      fprintf (stream, "M\tCommLoad[" ANUMSTRING "]=%f\n",
+               (Anum) distval, (double) commdist[distval] / (double) commload);
+  }
 
   diammin = GNUMMAX;
   diammax = 0;
@@ -337,21 +425,134 @@ FILE * const                  stream)
   for (mapnum = 0; mapnum < mapnbr; mapnum ++) {
     Gnum                diamval;
 
-    diamval  = graphMapView2 (grafptr, parttax, mapnum);
+    diamval  = graphMapView3 (grafptr, parttax, mapnum);
     diamsum += diamval;
     if (diamval < diammin)
       diammin = diamval;
     if (diamval > diammax)
       diammax = diamval;
   }
-  fprintf (stream, "M\tPartDiam\tmin=" GNUMSTRING "\tmax=" GNUMSTRING "\tavg=%lf\n",
-           (Gnum) diammin,
-           (Gnum) diammax,
-           (double) diamsum / (double) mapnbr);
+  if (flagval == 0) {
+    fprintf (stream, "M\tPartDiam\tmin=" GNUMSTRING "\tmax=" GNUMSTRING "\tavg=%lf\n",
+             (Gnum) diammin,
+             (Gnum) diammax,
+             (double) diamsum / (double) mapnbr);
+  }
+
+  if ((flagval == 0) && (lmaoptr != NULL)) {
+    fprintf (stream, "M\tMigrNbr=" GNUMSTRING "(%lf %%)\n",
+             migrnbr, (((double) migrnbr) / ((double) grafptr->vertnbr))*100);
+    fprintf (stream, "M\tAvgMigrDist=%lf\n",
+             (double) migrdistavg);
+    fprintf (stream, "M\tAvgMigrLoad=%lf\n",
+             (double) migrloadavg);
+    fprintf (stream, "M\tMigrCost=%lf\n",
+             (double) migrcostsum);
+  }
+  
+  if (flagval != 0) {                             /* If raw output */
+    fprintf (stream, "" GNUMSTRING "\t" GNUMSTRING "\t" GNUMSTRING "\t" GNUMSTRING "\t%g\t%g\t%g\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf", /* Print standard data */
+             (Gnum) mapnbr,
+             (Gnum) tgtnbr,
+             (Gnum) mapmin,
+             (Gnum) mapmax,
+             mapavg,
+             mapdlt,
+             mapmmy,
+             (double) commload,
+             (double) commexpan,
+             (double) commdilat / grafptr->edgenbr,
+             ((commload == 0) ? (double) 0.0L
+                              : (double) commexpan / (double) commload),
+             ((commload == 0) ? (double) 0.0L
+                              : (double) (commload - commdist[0]) / (double) commload),
+             (((double) commload  * (double) commdilat) == 0.0L)
+             ? (double) 0.0L
+             : ((double) commexpan * (double) grafptr->edgenbr) /
+               ((double) commload  * (double) commdilat));
+    if (lmaoptr != NULL)                          /* If we are doing repartitioning */
+      fprintf (stream, "\t%lf\t%lf\t%lf\t%lf\t%lf", /* Print repartitioning data    */
+               (double) emraval,
+               (double) migrnbr / (double) grafptr->vertnbr,
+               (double) migrdistavg,
+               (double) migrloadavg,
+               (double) migrcostsum);
+    fprintf (stream, "\n");
+  }
 
   memFree (domntab);                              /* Free group leader */
 
   return (0);
+}
+
+/*+ This routine writes mapping statistics
+*** to the given stream.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphMapView (
+const SCOTCH_Graph * const    libgrafptr,         /*+ Ordered graph    +*/
+const SCOTCH_Mapping * const  libmappptr,         /*+ Computed mapping +*/
+FILE * const                  stream)             /*+ Output stream    +*/
+{
+  return (graphMapView2 (libgrafptr, libmappptr, NULL, 0, NULL, 0, stream));
+}
+
+/*+ This routine writes remapping statistics
+*** to the given stream.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphRemapView (
+const SCOTCH_Graph * const    libgrafptr,         /*+ Ordered graph                                    +*/
+const SCOTCH_Mapping * const  libmappptr,         /*+ Computed mapping                                 +*/
+const SCOTCH_Mapping * const  libmapoptr,         /*+ Old mapping (equal to NULL if no repartitioning) +*/
+const double                  emraval,            /*+ Edge migration ratio                             +*/
+SCOTCH_Num *                  vmlotab,            /*+ Vertex migration cost array                      +*/
+FILE * const                  stream)             /*+ Output stream                                    +*/
+{
+  return (graphMapView2 (libgrafptr, libmappptr, libmapoptr, emraval, vmlotab, 0, stream));
+}
+
+/*+ This routine writes raw mapping statistics
+*** to the given stream.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphMapViewRaw (
+const SCOTCH_Graph * const    libgrafptr,         /*+ Ordered graph    +*/
+const SCOTCH_Mapping * const  libmappptr,         /*+ Computed mapping +*/
+FILE * const                  stream)             /*+ Output stream    +*/
+{
+  return (graphMapView2 (libgrafptr, libmappptr, NULL, 0, NULL, 1, stream));
+}
+
+/*+ This routine writes raw remapping statistics
+*** to the given stream.
+*** It returns:
+*** - 0   : on success.
+*** - !0  : on error.
++*/
+
+int
+SCOTCH_graphRemapViewRaw (
+const SCOTCH_Graph * const    libgrafptr,         /*+ Ordered graph                                    +*/
+const SCOTCH_Mapping * const  libmappptr,         /*+ Computed mapping                                 +*/
+const SCOTCH_Mapping * const  libmapoptr,         /*+ Old mapping (equal to NULL if no repartitioning) +*/
+const double                  emraval,            /*+ Edge migration ratio                             +*/
+SCOTCH_Num *                  vmlotab,            /*+ Vertex migration cost array                      +*/
+FILE * const                  stream)             /*+ Output stream                                    +*/
+{
+  return (graphMapView2 (libgrafptr, libmappptr, libmapoptr, emraval, vmlotab, 1, stream));
 }
 
 /*+ This routine computes the pseudo-diameter of
@@ -363,7 +564,7 @@ FILE * const                  stream)
 
 static
 Gnum
-graphMapView2 (
+graphMapView3 (
 const Graph * const         grafptr,              /*+ Graph      +*/
 const Anum * const          parttax,              /*+ Part array +*/
 const Anum                  partval)              /*+ Part value +*/
@@ -384,7 +585,7 @@ const Anum                  partval)              /*+ Part value +*/
   if (memAllocGroup ((void **) (void *)
                      &queudat.qtab, (size_t) (grafptr->vertnbr * sizeof (Gnum)),
                      &vexxtax,      (size_t) (grafptr->vertnbr * sizeof (GraphMapViewVertex)), NULL) == NULL) {
-    errorPrint ("graphMapView2: out of memory");
+    errorPrint ("graphMapView3: out of memory");
     return     (-1);
   }
 

@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010,2011 ENSEIRB, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -34,6 +34,7 @@
 /**   NAME       : arch_deco.c                             **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
+/**                Sebastien FOURESTIER (v6.0)             **/
 /**                                                        **/
 /**   FUNCTION   : This module handles the decomposition-  **/
 /**                defined target architecture.            **/
@@ -62,6 +63,8 @@
 /**                                 to     28 feb 2008     **/
 /**                # Version 5.1  : from : 21 jan 2008     **/
 /**                                 to     11 aug 2010     **/
+/**                # Version 6.0  : from : 14 fev 2011     **/
+/**                                 to     14 fev 2011     **/
 /**                                                        **/
 /************************************************************/
 
@@ -186,7 +189,7 @@ const Anum * const              termdisttab)      /*+ Terminal distance map     
                                               archDecoArchDistE (archptr, i, 2 * j + 1) + 1) / 2;
 #ifdef SCOTCH_DEBUG_ARCH1
         else {                                    /* If both domain are terminals                  */
-          if (archDecoArchDist (archptr, i, j) == 0) { /* Distance value must br greater than zero */
+          if (archDecoArchDist (archptr, i, j) == 0) { /* Distance value must be greater than zero */
             errorPrint       ("archDecoArchBuild: invalid null distance");
             archDecoArchFree (archptr);
             return           (1);
@@ -435,14 +438,15 @@ const ArchDeco * const      archptr,
 ArchDecoDom * const         domptr,
 const ArchDomNum            domnum)
 {
-  Anum                i, j;
+  Anum                domtermnum;
+  Anum                domvertnum;
 
-  for (i = archptr->domtermnbr, j = archptr->domvertnbr - 1;
-       (i > 0) && (j != (Anum) (-1)); j --) {
-    if (archptr->domverttab[j].size == 1) {       /* If terminal vertex               */
-      i --;                                       /* One more terminal scanned        */
-      if (archptr->domverttab[j].labl == domnum) { /* If terminal domain number found */
-        domptr->num = j;                          /* Set domain number                */
+  for (domtermnum = archptr->domtermnbr, domvertnum = archptr->domvertnbr - 1;
+       (domtermnum > 0) && (domvertnum != (Anum) (-1)); domvertnum --) {
+    if (archptr->domverttab[domvertnum].size == 1) { /* If terminal vertex                     */
+      domtermnum --;                              /* One more terminal scanned                 */
+      if (archptr->domverttab[domvertnum].labl == domnum) { /* If terminal domain number found */
+        domptr->num = domvertnum;                 /* Set domain number                         */
         return (0);
       }
     }
@@ -570,8 +574,32 @@ ArchDecoDom * restrict const  dom1ptr)
   if (archptr->domverttab[domptr->num - 1].size <= 1) /* Return if cannot bipartition more */
     return (1);
 
-  dom0ptr->num = domptr->num * 2;                 /* Compute subdomain numbers from domain number */
+  dom0ptr->num = domptr->num << 1;                /* Compute subdomain numbers from domain number */
   dom1ptr->num = dom0ptr->num + 1;
+
+  return (0);
+}
+
+/* This function checks if dom1 is
+** included in dom0.
+** It returns:
+** - 0  : if dom1 is not included in dom0.
+** - 1  : if dom1 is included in dom0.
+** - 2  : on error.
+*/
+
+int
+archDecoDomIncl (
+const ArchDeco * const      archptr,
+const ArchDecoDom * const   dom0ptr,
+const ArchDecoDom * const   dom1ptr)
+{
+  Anum          dom0num;
+  Anum          dom1num;
+
+  for (dom1num = dom1ptr->num, dom0num = dom0ptr->num; dom1num != 0; dom1num >>= 1)
+    if (dom1num == dom0ptr->num)
+      return (1);
 
   return (0);
 }

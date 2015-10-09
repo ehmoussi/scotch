@@ -1,4 +1,4 @@
-/* Copyright 2007-2009 ENSEIRB, INRIA & CNRS
+/* Copyright 2007-2009,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -44,6 +44,8 @@
 /**                                 to   : 21 jun 2007     **/
 /**                # Version 5.1  : from : 23 nov 2008     **/
 /**                                 to   : 04 apr 2009     **/
+/**                # Version 6.0  : from : 03 oct 2012     **/
+/**                                 to   : 03 oct 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -74,6 +76,7 @@ int                         dgraphMatchSyncColl (DgraphMatchData * restrict cons
 int                         dgraphMatchSyncPtop (DgraphMatchData * restrict const);
 int                         dgraphMatchCheck    (DgraphMatchData * restrict const);
 
+void                        dgraphMatchHl       (DgraphMatchData * restrict const);
 void                        dgraphMatchSc       (DgraphMatchData * restrict const);
 void                        dgraphMatchHy       (DgraphMatchData * restrict const);
 void                        dgraphMatchLc       (DgraphMatchData * restrict const);

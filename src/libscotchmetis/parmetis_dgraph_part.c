@@ -1,4 +1,4 @@
-/* Copyright 2008-2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2008-2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -41,6 +41,8 @@
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 19 jun 2008     **/
 /**                                 to     30 jun 2010     **/
+/**                # Version 6.0  : from : 13 sep 2012     **/
+/**                                 to     13 sep 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -65,20 +67,20 @@
 
 void
 METISNAMEU(ParMETIS_V3_PartKway) (
-const int * const           vtxdist,
-int * const                 xadj,
-int * const                 adjncy,
-int * const                 vwgt,
-int * const                 adjwgt,
-const int * const           wgtflag,
-const int * const           numflag,
-const int * const           ncon,                 /* Not used */
-const int * const           nparts,
+const SCOTCH_Num * const    vtxdist,
+SCOTCH_Num * const          xadj,
+SCOTCH_Num * const          adjncy,
+SCOTCH_Num * const          vwgt,
+SCOTCH_Num * const          adjwgt,
+const SCOTCH_Num * const    wgtflag,
+const SCOTCH_Num * const    numflag,
+const SCOTCH_Num * const    ncon,                 /* Not used */
+const SCOTCH_Num * const    nparts,
 const float * const         tpwgts,
 const float * const         ubvec,                /* Not used */
-const int * const           options,              /* Not used */
-int * const                 edgecut,
-int * const                 part,
+const SCOTCH_Num * const    options,              /* Not used */
+SCOTCH_Num * const          edgecut,
+SCOTCH_Num * const          part,
 MPI_Comm *                  comm)
 {
   MPI_Comm            proccomm;
@@ -95,12 +97,7 @@ MPI_Comm *                  comm)
   SCOTCH_Num *        edloloctab;
   SCOTCH_Num *        velotab;
   double *            vwgttab;
-  int                 i;
-
-  if (sizeof (SCOTCH_Num) != sizeof (int)) {
-    SCOTCH_errorPrint ("ParMETIS_V3_PartKway (as of SCOTCH): SCOTCH_Num type should equate to int");
-    return;
-  }
+  SCOTCH_Num          i;
 
   if ((vwgttab = malloc (*nparts * sizeof (double))) == NULL)
     return;
@@ -114,7 +111,7 @@ MPI_Comm *                  comm)
     double deltval;
     deltval = fabs (vwgttab[i] - floor (vwgttab[i] + 0.5));
     if (deltval > 0.01) {
-      int                 j;
+      SCOTCH_Num          j;
 
       deltval = 1.0 / deltval;
       for (j = 0; j < *nparts; j ++)
@@ -177,22 +174,22 @@ MPI_Comm *                  comm)
 
 void
 METISNAMEU(ParMETIS_V3_PartGeomKway) (
-const int * const           vtxdist,
-int * const                 xadj,
-int * const                 adjncy,
-int * const                 vwgt,
-int * const                 adjwgt,
-const int * const           wgtflag,
-const int * const           numflag,
-const int * const           ndims,                /* Not used */
+const SCOTCH_Num * const    vtxdist,
+SCOTCH_Num * const          xadj,
+SCOTCH_Num * const          adjncy,
+SCOTCH_Num * const          vwgt,
+SCOTCH_Num * const          adjwgt,
+const SCOTCH_Num * const    wgtflag,
+const SCOTCH_Num * const    numflag,
+const SCOTCH_Num * const    ndims,                /* Not used */
 const float * const         xyz,                  /* Not used */
-const int * const           ncon,                 /* Not used */
-const int * const           nparts,
+const SCOTCH_Num * const    ncon,                 /* Not used */
+const SCOTCH_Num * const    nparts,
 const float * const         tpwgts,
 const float * const         ubvec,
-const int * const           options,              /* Not used */
-int * const                 edgecut,
-int * const                 part,
+const SCOTCH_Num * const    options,              /* Not used */
+SCOTCH_Num * const          edgecut,
+SCOTCH_Num * const          part,
 MPI_Comm *                  commptr)
 {
   METISNAMEU(ParMETIS_V3_PartKway) (vtxdist, xadj, adjncy, vwgt, adjwgt, wgtflag, numflag, ncon, nparts, tpwgts, ubvec, options, edgecut, part, commptr);

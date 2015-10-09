@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010,2012 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -49,6 +49,8 @@
 /**                                 to     31 may 2008     **/
 /**                # Version 5.1  : from : 29 mar 2010     **/
 /**                                 to     14 aug 2010     **/
+/**                # Version 6.0  : from : 14 nov 2012     **/
+/**                                 to     14 nov 2012     **/
 /**                                                        **/
 /************************************************************/
 
@@ -257,6 +259,8 @@ SCOTCH_Strat * const        stratptr)             /*+ Ordering strategy         
     errorPrint ("SCOTCH_meshOrderComputeList: node lists not yet implemented");
     return     (1);
   }
+
+  intRandInit ();                                 /* Check that random number generator is initialized */
 
   hmeshOrderSt (&srcmeshdat, &libordeptr->o, 0, &libordeptr->o.cblktre, ordstratptr);
 
