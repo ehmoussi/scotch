@@ -11,7 +11,7 @@ CCP		= mpicc
 CCD		= gcc
 CFLAGS		= -O3 -fPIC -DCOMMON_FILE_COMPRESS_GZ -DCOMMON_PTHREAD -DCOMMON_RANDOM_FIXED_SEED -DSCOTCH_RENAME -DSCOTCH_RENAME_PARSER -DSCOTCH_PTHREAD -Drestrict=__restrict
 CLIBFLAGS	=
-LDFLAGS		= -fPIC -lz -lm -lpthread -lrt
+LDFLAGS		= -fPIC -lz -lm -pthread -lrt
 CP		= cp
 LEX		= flex -Pscotchyy -olex.yy.c
 LN		= ln
