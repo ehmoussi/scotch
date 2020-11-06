@@ -1,4 +1,4 @@
-/* Copyright 2011,2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2011,2012,2014,2018 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -42,8 +42,8 @@
 /**                tioning routines to handle floating-    **/
 /**                point migration costs.                  **/
 /**                                                        **/
-/**   DATES      : # Version 6.0  : from : 14 fev 2011     **/
-/**                                 to   : 01 jul 2014     **/
+/**   DATES      : # Version 6.0  : from : 14 feb 2011     **/
+/**                                 to   : 28 may 2018     **/
 /**                                                        **/
 /************************************************************/
 
@@ -73,13 +73,14 @@ typedef struct ArchDist_ {
 #ifndef ARCH_DIST_H_PROTO
 #define ARCH_DIST_H_PROTO
 
-#ifndef ARCH_DIST
-#define static
-#endif
-
 int                         archDistArchLoad    (ArchDist * restrict const, FILE * restrict const);
 int                         archDistArchSave    (const ArchDist * const, FILE * restrict const);
-#define archDistArchFree    NULL
+#define archDistArchFree            NULL
+
+#define archDistMatchInit           NULL
+#define archDistMatchExit           NULL
+#define archDistMatchMate           NULL
+
 int                         archDistArchBuild   (struct Arch_ * const, struct Arch_ * const, const Anum);
 ArchDomNum                  archDistDomNum      (const ArchDist * const, const ArchDom * const);
 int                         archDistDomTerm     (const ArchDist * const, ArchDom * restrict const, const ArchDomNum);
@@ -94,8 +95,6 @@ int                         archDistDomIncl     (const ArchDist * const, const A
 #ifdef SCOTCH_PTSCOTCH
 int                         archDistDomMpiType  (const ArchDist * const, MPI_Datatype * const);
 #endif /* SCOTCH_PTSCOTCH */
-
-#undef static
 
 #endif /* ARCH_DIST_H_PROTO */
 #endif /* ARCH_NOPROTO      */

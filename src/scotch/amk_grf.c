@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -55,7 +55,7 @@
 /**                # Version 5.1  : from : 11 dec 2008     **/
 /**                                 to   : 17 jul 2011     **/
 /**                # Version 6.0  : from : 01 jan 2012     **/
-/**                                 to   : 12 nov 2014     **/
+/**                                 to   : 24 sep 2019     **/
 /**                                                        **/
 /************************************************************/
 
@@ -76,13 +76,14 @@
 
 static int                  C_fileNum = 0;        /* Number of file in arg list */
 static File                 C_fileTab[C_FILENBR] = { /* File array              */
-                              { "r" },
-                              { "w" },
-                              { "r" } };
+                              { FILEMODER },
+                              { FILEMODEW },
+                              { FILEMODER } };
 
 static const char *         C_usageList[] = {     /* Usage */
   "amk_grf [<input source file> [<output target file>]] <options>",
-  "  -b<strat>  : Apply bipartitioning strategy <strat>",
+  "  -2         : Create a 'deco 2' instead of a 'deco 0' architecture",
+  "  -b<strat>  : Apply bipartitioning strategy <strat> (for 'deco 0' architectures)",
   "  -h         : Display this help",
   "  -l<file>   : Load vertex list from <file>",
   "  -V         : Print program version and copyright",
@@ -117,7 +118,7 @@ char *                      argv[])
 
   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
     usagePrint (stdout, C_usageList);
-    return     (0);
+    return     (EXIT_SUCCESS);
   }
 
   flagval = C_FLAGNONE;
@@ -129,26 +130,25 @@ char *                      argv[])
     if ((argv[i][0] != '-') || (argv[i][1] == '\0') || (argv[i][1] == '.')) { /* If found a file name */
       if (C_fileNum < C_FILEARGNBR)               /* File name has been given                         */
         fileBlockName (C_fileTab, C_fileNum ++) = argv[i];
-      else {
+      else
         errorPrint ("main: too many file names given");
-        return     (1);
-      }
     }
     else {                                        /* If found an option name */
       switch (argv[i][1]) {
+        case '2' :                                /* Type-2 architecture */
+          flagval |= C_FLAGDECO2;
+          break;
         case 'B' :                                /* Bipartitioning strategy */
         case 'b' :
           SCOTCH_stratExit (&bipastrat);
           SCOTCH_stratInit (&bipastrat);
-          if ((SCOTCH_stratGraphBipart (&bipastrat, &argv[i][2])) != 0) {
+          if ((SCOTCH_stratGraphBipart (&bipastrat, &argv[i][2])) != 0)
             errorPrint ("main: invalid bipartitioning strategy");
-            return     (1);
-          }
           break;
         case 'H' :                                /* Give the usage message */
         case 'h' :
           usagePrint (stdout, C_usageList);
-          return     (0);
+          return     (EXIT_SUCCESS);
         case 'L' :                                /* Input vertex list */
         case 'l' :
           flagval |= C_FLAGVRTINP;
@@ -157,12 +157,11 @@ char *                      argv[])
           break;
         case 'V' :
           fprintf (stderr, "amk_grf, version " SCOTCH_VERSION_STRING "\n");
-          fprintf (stderr, "Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS, France\n");
-          fprintf (stderr, "This software is libre/free software under CeCILL-C -- see the user's manual for more information\n");
-          return  (0);
+          fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+          fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
+          return  (EXIT_SUCCESS);
         default :
           errorPrint ("main: unprocessed option '%s'", argv[i]);
-          return     (1);
       }
     }
   }
@@ -181,37 +180,28 @@ char *                      argv[])
 
     if ((intLoad (C_filepntrvrtinp, &listnbr) != 1) || /* Read list size */
         (listnbr < 0)                               ||
-        (listnbr > vertnbr)) {
+        (listnbr > vertnbr))
       errorPrint ("main: bad list input (1)");
-      return     (1);
-    }
-    if ((listtab = (SCOTCH_Num *) memAlloc (listnbr * sizeof (SCOTCH_Num) + 1)) == NULL) {
+
+    if ((listtab = (SCOTCH_Num *) memAlloc (listnbr * sizeof (SCOTCH_Num))) == NULL)
       errorPrint ("main: out of memory (1)");
-      return     (1);
-    }
+
     for (listnum = 0; listnum < listnbr; listnum ++) { /* Read list data */
-      if (intLoad (C_filepntrvrtinp, &listtab[listnum]) != 1) {
+      if (intLoad (C_filepntrvrtinp, &listtab[listnum]) != 1)
         errorPrint ("main: bad list input (2)");
-        return     (1);
-      }
     }
     intSort1asc1 (listtab, listnbr);
     for (listnum = 0; listnum < listnbr - 1; listnum ++) { /* Search for duplicates */
-      if (listtab[listnum] == listtab[listnum + 1]) {
+      if (listtab[listnum] == listtab[listnum + 1])
         errorPrint ("main: duplicate list labels");
-        memFree    (listtab);
-        return     (1);
-      }
     }
 
     if (vlbltab != NULL) {                        /* If graph has vertex labels */
       SCOTCH_Num          vertnum;
 
-      if ((sorttab = (C_VertSort *) memAlloc (vertnbr * sizeof (C_VertSort))) == NULL) {
+      if ((sorttab = (C_VertSort *) memAlloc (vertnbr * sizeof (C_VertSort))) == NULL)
         errorPrint ("main: out of memory (2)");
-        memFree    (listtab);
-        return     (1);
-      }
+
       for (vertnum = 0; vertnum < vertnbr; vertnum ++) { /* Initialize sort area */
         sorttab[vertnum].vlblnum = vlbltab[vertnum];
         sorttab[vertnum].vertnum = vertnum;
@@ -222,21 +212,21 @@ char *                      argv[])
         while ((vertnum < vertnbr) && (sorttab[vertnum].vlblnum < listtab[listnum]))
           vertnum ++;                             /* Search vertex graph with corresponding label */
         if ((vertnum >= vertnbr) ||               /* If label not found                           */
-            (sorttab[vertnum].vlblnum > listtab[listnum])) {
+            (sorttab[vertnum].vlblnum > listtab[listnum]))
           errorPrint ("main: list label '" SCOTCH_NUMSTRING "' not in graph", (SCOTCH_Num) listtab[listnum]);
-          memFree    (sorttab);
-          memFree    (listtab);
-          return     (1);
-        }
+
         listtab[listnum] = sorttab[vertnum ++].vertnum; /* Replace label by number */
       }
       memFree (sorttab);                          /* Free sort area */
     }
   }
 
-  SCOTCH_archInit  (&archdat);                    /* Initialize target architecture            */
-  SCOTCH_archBuild (&archdat, &grafdat, listnbr, listtab, &bipastrat); /* Compute architecture */
-  SCOTCH_archSave  (&archdat, C_filepntrtgtout);  /* Write target architecture                 */
+  SCOTCH_archInit  (&archdat);                    /* Initialize target architecture */
+  if ((flagval & C_FLAGDECO2) != 0)
+    SCOTCH_archBuild2 (&archdat, &grafdat, listnbr, listtab); /* Compute type-2 architecture */
+  else
+    SCOTCH_archBuild0 (&archdat, &grafdat, listnbr, listtab, &bipastrat); /* Compute type-0 architecture */
+  SCOTCH_archSave  (&archdat, C_filepntrtgtout);  /* Write target architecture                           */
 
   fileBlockClose (C_fileTab, C_FILENBR);          /* Always close explicitely to end potential (un)compression tasks */
 
@@ -246,8 +236,5 @@ char *                      argv[])
   if (listtab != NULL)                            /* If vertex list provided  */
     memFree (listtab);                            /* Free it                  */
 
-#ifdef COMMON_PTHREAD
-  pthread_exit ((void *) 0);                      /* Allow potential (un)compression tasks to complete */
-#endif /* COMMON_PTHREAD */
-  return (0);
+  return (EXIT_SUCCESS);
 }

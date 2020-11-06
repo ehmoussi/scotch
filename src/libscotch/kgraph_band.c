@@ -1,4 +1,4 @@
-/* Copyright 2009-2011,2013-2015 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2009-2011,2013-2016,2018,2019 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -41,7 +41,7 @@
 /**                array.                                  **/
 /**                                                        **/
 /**   DATES      : # Version 6.0  : from : 05 jan 2009     **/
-/**                                 to   : 01 mar 2015     **/
+/**                                 to   : 28 apr 2019     **/
 /**                                                        **/
 /**   NOTES      : # This code derives from the code of    **/
 /**                  kdgraph_band.c in version 5.2 for     **/
@@ -109,7 +109,6 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
   Gnum                      bandedlonbr;          /* Size of local band edge load array                                                     */
   Gnum                      bandedlosum;
   Gnum * restrict           bandcompload;
-  Gnum                      bandcommload;
   Gnum * restrict         compload;               /* Load of parts in original graph                                                        */
   Gnum                    fronnum;
   Anum                    domnnbr;
@@ -185,7 +184,6 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
           if (termhashtab[termhashnum].termnum == termnum) { /* If hash slot found */
             errorPrint ("kgraphBand: duplicate terminal domain in domain array");
             memFree    (termhashtab);
-            kgraphExit (bandgrafptr);
             return     (1);
           }
 #endif /* SCOTCH_DEBUG_KGRAPH2 */
@@ -228,13 +226,20 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
     errorPrint ("kgraphBand: out of memory (2)");
     return     (1);
   }
+  bandgrafptr->s.verttax -= bandgrafptr->s.baseval;
+  bandgrafptr->s.velotax -= bandgrafptr->s.baseval;
+
   if ((bandvnumtax = memAlloc ((bandvertnbr) * sizeof (Gnum))) == NULL) { /* Allocate alone since it is an output */
     errorPrint ("kgraphBand: out of memory (3)");
+    kgraphExit (bandgrafptr);
     return     (1);
   }
+  bandvmlotax = NULL;
   if (vmlotax != NULL) {
     if ((bandvmlotax = memAlloc (bandvertnbr * sizeof (Gnum))) == NULL) {
       errorPrint ("kgraphBand: out of memory (4)");
+      kgraphExit (bandgrafptr);
+      memFree    (bandvnumtax);
       return     (1);
     }
     memSet (bandvnumtax + bandvertnbr - domnnbr, ~0, domnnbr * sizeof (Gnum)); /* Prevent Valgrind from yelling when centralizing band graphs */
@@ -242,25 +247,29 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
     bandgrafptr->r.vmlotax  = bandvmlotax;
     bandgrafptr->s.flagval |= KGRAPHFREEVMLO;
   }
+  bandparotax = NULL;
   if (parotax != NULL) {
     if ((bandparotax = memAlloc (bandvertnbr * sizeof (Gnum))) == NULL) {
       errorPrint ("kgraphBand: out of memory (5)");
+      if (bandvmlotax != NULL)
+        memFree (bandvmlotax + bandgrafptr->s.baseval);
+      kgraphExit (bandgrafptr);
+      memFree    (bandvnumtax);
       return     (1);
     }
     memSet (bandparotax + bandvertnbr - bandgrafptr->r.m.domnnbr, ~0, bandgrafptr->r.m.domnnbr * sizeof (Gnum)); /* Prevent Valgrind from yelling when centralizing band graphs */
     bandparotax -= bandgrafptr->s.baseval;
-    bandgrafptr->r.m.parttax = bandparotax;
+    bandgrafptr->r.m.parttax  = bandparotax;
     bandgrafptr->r.m.flagval |= MAPPINGFREEPART;
   }
 
-  bandgrafptr->s.verttax -= bandgrafptr->s.baseval;
-  bandvnumtax            -= bandgrafptr->s.baseval;
-  bandgrafptr->s.velotax -= bandgrafptr->s.baseval;
-
   if ((bandgrafptr->s.edgetax = memAlloc ((bandedgenbr + bandedlonbr) * sizeof (Gnum))) == NULL) {
     errorPrint ("kgraphBand: out of memory (6)");
+    kgraphExit (bandgrafptr);
+    memFree    (bandvnumtax);
     return     (1);
   }
+  bandvnumtax            -= bandgrafptr->s.baseval;
   bandedlotax             = NULL;
   bandedgetax             =
   bandgrafptr->s.edgetax -= bandgrafptr->s.baseval;
@@ -334,7 +343,6 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
   bandverttax  = bandgrafptr->s.verttax;
   bandvelotax  = bandgrafptr->s.velotax;
   banddegrmax  = 0;
-  bandcommload = 0;
   bandcompload = bandgrafptr->comploaddlt;        /* TRICK: use delta array to compute load sums */
   memSet (bandcompload, 0, domnnbr * sizeof (Gnum));
   bandedlosum = 0;
@@ -417,7 +425,7 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
       else
         bandedgetax[bandedgenum ++] = vnumotbdtax[vertend];
     }
-    
+   
     if (vfixflag == 1) {                          /* If vertex has at least one neighbours that is fixed */
       Gnum                    edloval;
 
@@ -447,7 +455,7 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
     Anum              partval;
 
     vertnum = bandvnumtax[bandvertnum];
-    if (vfixflag == 1) {                          /* Last vertex had neighbours fixed vertices      */ 
+    if (vfixflag == 1) {                          /* Last vertex had neighbours fixed vertices      */
       memSet (bandanlotab, 0, domnnbr * sizeof (Gnum)); /* Reset loads to anchors                   */
       vfixflag = 0;                               /* Guess that these are no extra loads to anchors */
     }
@@ -567,7 +575,7 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
 
   if (bandvertancadj == 1)                        /* Anchors have to be adjusted                       */
     for (domnnum = 0; domnnum < domnnbr; domnnum ++) /* Increase weight of all anchors to keep balance */
-      bandvelotax[bandvertnnd + domnnum] ++;   
+      bandvelotax[bandvertnnd + domnnum] ++;  
 
   bandverttax[bandvertnum] = bandedgenum;         /* Fill last element without anchors */
   if (pfixtax != NULL)
@@ -592,7 +600,7 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
 
   if (pfixtax != NULL) {                          /* We have fixed vertices */
     memFree (termhashtab);                        /* Free group leader      */
-    for (bandvertnum = bandgrafptr->s.baseval, bandedgenum = 0; bandvertnum < bandvertnnd; 
+    for (bandvertnum = bandgrafptr->s.baseval, bandedgenum = 0; bandvertnum < bandvertnnd;
         bandvertnum ++) {                         /* Link anchors to vertices */
       for ( ; bandedgenum < bandverttax[bandvertnum + 1]; bandedgenum ++) {
         Gnum                  bandvertend;
@@ -607,7 +615,7 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
 
           bandedlotax[bandedgetab[partval]] = edloval;
           bandedlosum += edloval;
-          bandedgetax[bandedgetab[partval] ++] = bandvertnum; 
+          bandedgetax[bandedgetab[partval] ++] = bandvertnum;
         }
       }
     }
@@ -618,7 +626,7 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
       Gnum              edgennd;
 
       for (bandvertnum = bandgrafptr->s.baseval;  /* For all vertices not belonging to last level */
-           bandvertnum < bandvertlvlnum; bandvertnum ++) { 
+           bandvertnum < bandvertlvlnum; bandvertnum ++) {
         Gnum              vertnum;
         Gnum              bandedgenum;
 
@@ -635,9 +643,7 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
     for (bandvertnum = bandvertlvlnum; bandvertnum < bandvertnnd; /* We do not have fixed vertices */
          bandvertnum ++) {                        /* Link anchors to vertices of last level        */
       Anum              partval;
-      Gnum              vertnum;
 
-      vertnum = bandvnumtax[bandvertnum];
       partval = bandparttax[bandvertnum];
       bandedgetax[bandedgetab[partval] ++] = bandvertnum;
 
@@ -653,13 +659,13 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
       }
     }
 #endif /* SCOTCH_DEBUG_KGRAPH2 */
-  }  
+  } 
   bandedgenbr = bandgrafptr->s.verttax[bandvertnnd + domnnbr] - bandgrafptr->s.baseval; /* Set real number of edges */
 
   bandgrafptr->s.vendtax = bandgrafptr->s.verttax + 1; /* Band graph is compact */
   bandgrafptr->s.velosum = grafptr->s.velosum + domnnbr * bandvertancadj;
   bandgrafptr->s.edgenbr = bandedgenbr;
-  if (bandedlotax == NULL) 
+  if (bandedlotax == NULL)
     bandedlosum = bandedgenbr;
   bandgrafptr->s.edlosum = bandedlosum;
   bandgrafptr->s.degrmax = banddegrmax;           /* Local maximum degree will be turned into global maximum degree */
@@ -689,4 +695,3 @@ Gnum * restrict * restrict const  bandvnumptr)    /*+ Pointer to bandvnumtax    
 
   return (0);
 }
-

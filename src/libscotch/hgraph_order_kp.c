@@ -1,4 +1,4 @@
-/* Copyright 2012 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2012,2016 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -41,7 +41,7 @@
 /**   DATES      : # Version 5.0  : from : 17 oct 2012     **/
 /**                                 to   : 17 oct 2012     **/
 /**                # Version 6.0  : from : 23 aug 2014     **/
-/**                                 to   : 23 aug 2014     **/
+/**                                 to   : 15 aug 2016     **/
 /**                                                        **/
 /************************************************************/
 
@@ -105,6 +105,7 @@ const HgraphOrderKpParam * restrict const paraptr)
     return     (1);
   }
 
+  memSet (&actgrafdat, 0, sizeof (Kgraph));       /* Allow for freeing on subsequent error      */
   hgraphUnhalo (grafptr, &actgrafdat.s);          /* Extract non-halo part of given graph       */
   actgrafdat.s.vnumtax = NULL;                    /* Do not keep numbers from nested dissection */
 
@@ -114,6 +115,7 @@ const HgraphOrderKpParam * restrict const paraptr)
       (kgraphMapSt (&actgrafdat, paraptr->strat) != 0)) {
     errorPrint ("hgraphOrderKp: cannot compute partition");
     memFree    (cblkptr->cblktab);
+    kgraphExit (&actgrafdat);
     cblkptr->cblktab = NULL;
     return (1);
   }
@@ -123,6 +125,7 @@ const HgraphOrderKpParam * restrict const paraptr)
                      &parttax, (size_t) (grafptr->vnohnbr * sizeof (Anum)), NULL) == NULL) {
     errorPrint ("hgraphOrderKp: out of memory (2)");
     memFree    (cblkptr->cblktab);
+    kgraphExit (&actgrafdat);
     cblkptr->cblktab = NULL;
     return (1);
   }

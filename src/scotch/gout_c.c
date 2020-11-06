@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -39,25 +39,25 @@
 /**                This module contains the main function. **/
 /**                                                        **/
 /**   DATES      : # Version 2.0  : from : 06 oct 1994     **/
-/**                                 to     23 dec 1994     **/
+/**                                 to   : 23 dec 1994     **/
 /**                # Version 3.0  : from : 14 jul 1995     **/
-/**                                 to     11 oct 1995     **/
+/**                                 to   : 11 oct 1995     **/
 /**                # Version 3.1  : from : 27 mar 1996     **/
-/**                                 to     03 apr 1996     **/
+/**                                 to   : 03 apr 1996     **/
 /**                # Version 3.2  : from : 02 dec 1996     **/
-/**                                 to     05 jun 1998     **/
+/**                                 to   : 05 jun 1998     **/
 /**                # Version 3.3  : from : 29 may 1999     **/
 /**                                 to   : 03 jun 1999     **/
 /**                # Version 3.4  : from : 03 feb 2000     **/
 /**                                 to   : 03 feb 2000     **/
 /**                # Version 4.0  : from : 11 dec 2001     **/
-/**                                 to     08 feb 2004     **/
+/**                                 to   : 08 feb 2004     **/
 /**                # Version 5.0  : from : 25 may 2007     **/
-/**                                 to     25 may 2007     **/
+/**                                 to   : 25 may 2007     **/
 /**                # Version 5.1  : from : 25 oct 2007     **/
-/**                                 to     14 feb 2011     **/
+/**                                 to   : 14 feb 2011     **/
 /**                # Version 6.0  : from : 16 oct 2010     **/
-/**                                 to     12 nov 2014     **/
+/**                                 to   : 17 apr 2019     **/
 /**                                                        **/
 /************************************************************/
 
@@ -79,10 +79,10 @@
 
 static int                  C_fileNum = 0;        /* Number of file in arg list */
 File                        C_fileTab[C_FILENBR] = { /* The file array; public  */
-                              { "r" },
-                              { "r" },
-                              { "r" },
-                              { "w" } };
+                              { FILEMODER },
+                              { FILEMODER },
+                              { FILEMODER },
+                              { FILEMODEW } };
 
 static unsigned int         C_geoFlag = C_GEOFLAGDEFAULT; /* Geometry flag */
 
@@ -149,7 +149,7 @@ char *                      argv[])
 
   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
     usagePrint (stdout, C_usageList);
-    return     (0);
+    return     (EXIT_SUCCESS);
   }
 
   fileBlockInit (C_fileTab, C_FILENBR);           /* Set default stream pointers */
@@ -171,7 +171,7 @@ char *                      argv[])
         case 'H' :                                /* Give the usage message */
         case 'h' :
           usagePrint (stdout, C_usageList);
-          return     (0);
+          return     (EXIT_SUCCESS);
         case 'M' :                                /* No-mapping flag */
         case 'm' :
           if (((argv[i][2] != 'N') && (argv[i][2] != 'n')) || (argv[i][3] != '\0'))
@@ -186,9 +186,9 @@ char *                      argv[])
           break;
         case 'V' :
           fprintf (stderr, "gout, version " SCOTCH_VERSION_STRING "\n");
-          fprintf (stderr, "Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS, France\n");
-          fprintf (stderr, "This software is libre/free software under CeCILL-C -- see the user's manual for more information\n");
-          return  (0);
+          fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+          fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
+          return  (EXIT_SUCCESS);
         default :
           errorPrint ("main: Unprocessed option '%s'", argv[i]);
       }
@@ -218,10 +218,7 @@ char *                      argv[])
   C_geoExit        (&geo);
   SCOTCH_graphExit (&grafdat.grafdat);
 
-#ifdef COMMON_PTHREAD
-  pthread_exit ((void *) 0);                      /* Allow potential (un)compression tasks to complete */
-#endif /* COMMON_PTHREAD */
-  return (0);
+  return (EXIT_SUCCESS);
 }
 
 /***********************************/

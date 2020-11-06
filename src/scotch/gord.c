@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014,2018,2019 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -52,7 +52,9 @@
 /**                # Version 5.1  : from : 01 jul 2010     **/
 /**                                 to   : 14 feb 2011     **/
 /**                # Version 6.0  : from : 01 jan 2012     **/
-/**                                 to   : 12 nov 2014     **/
+/**                                 to   : 24 sep 2019     **/
+/**                # Version 6.1  : from : 30 oct 2019     **/
+/**                                 to   : 30 oct 2019     **/
 /**                                                        **/
 /************************************************************/
 
@@ -73,11 +75,11 @@
 
 static int                  C_fileNum = 0;        /* Number of file in arg list */
 static File                 C_fileTab[C_FILENBR] = { /* File array              */
-                              { "r" },
-                              { "w" },
-                              { "w" },
-                              { "w" },
-                              { "w" } };
+                              { FILEMODER },
+                              { FILEMODEW },
+                              { FILEMODEW },
+                              { FILEMODEW },
+                              { FILEMODEW } };
 
 static const char *         C_usageList[] = {
   "gord [<input source file> [<output ordering file> [<output log file>]]] <options>",
@@ -124,7 +126,7 @@ char *                      argv[])
 
   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
     usagePrint (stdout, C_usageList);
-    return     (0);
+    return     (EXIT_SUCCESS);
   }
 
   flagval = C_FLAGNONE;                           /* Default behavior  */
@@ -171,7 +173,7 @@ char *                      argv[])
         case 'H' :                                /* Give the usage message */
         case 'h' :
           usagePrint (stdout, C_usageList);
-          return     (0);
+          return     (EXIT_SUCCESS);
         case 'M' :                                /* Output separator mapping */
         case 'm' :
           flagval |= C_FLAGMAPOUT;
@@ -193,9 +195,9 @@ char *                      argv[])
           break;
         case 'V' :
           fprintf (stderr, "gord, version " SCOTCH_VERSION_STRING "\n");
-          fprintf (stderr, "Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS, France\n");
-          fprintf (stderr, "This software is libre/free software under CeCILL-C -- see the user's manual for more information\n");
-          return  (0);
+          fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+          fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
+          return  (EXIT_SUCCESS);
         case 'v' :                               /* Output control info */
           for (j = 2; argv[i][j] != '\0'; j ++) {
             switch (argv[i][j]) {
@@ -223,9 +225,9 @@ char *                      argv[])
   clockInit  (&runtime[0]);
   clockStart (&runtime[0]);
 
-  SCOTCH_graphInit (&grafdat);                    /* Create graph structure    */
-  SCOTCH_graphLoad (&grafdat, C_filepntrsrcinp, -1, 2); /* Read source graph   */
-  SCOTCH_graphSize (&grafdat, &vertnbr, NULL);    /* Get graph characteristics */
+  SCOTCH_graphInit (&grafdat);                    /* Create graph structure                      */
+  SCOTCH_graphLoad (&grafdat, C_filepntrsrcinp, -1, 2); /* Read source graph with vertex weights */
+  SCOTCH_graphSize (&grafdat, &vertnbr, NULL);    /* Get graph characteristics                   */
 
   if (straval != 0) {
     if (straptr != NULL)
@@ -238,18 +240,16 @@ char *                      argv[])
   clockInit  (&runtime[1]);
   clockStart (&runtime[1]);
 
-  if ((permtab = (SCOTCH_Num *) memAlloc (vertnbr * sizeof (SCOTCH_Num))) == NULL) {
+  if ((permtab = (SCOTCH_Num *) memAlloc (vertnbr * sizeof (SCOTCH_Num))) == NULL)
     errorPrint ("main: out of memory");
-    return     (1);
-  }
+
   SCOTCH_graphOrderInit    (&grafdat, &ordedat, permtab, NULL, NULL, NULL, NULL); /* Create ordering */
   SCOTCH_graphOrderCompute (&grafdat, &ordedat, &stradat); /* Perform ordering */
 
   clockStop (&runtime[1]);                        /* Get ordering time */
 
 #ifdef SCOTCH_DEBUG_ALL
-  if (SCOTCH_graphOrderCheck (&grafdat, &ordedat) != 0)
-    return (1);
+  SCOTCH_graphOrderCheck (&grafdat, &ordedat);
 #endif /* SCOTCH_DEBUG_ALL */
 
   clockStart (&runtime[0]);
@@ -282,8 +282,5 @@ char *                      argv[])
   SCOTCH_graphExit      (&grafdat);
   memFree               (permtab);
 
-#ifdef COMMON_PTHREAD
-  pthread_exit ((void *) 0);                      /* Allow potential (un)compression tasks to complete */
-#endif /* COMMON_PTHREAD */
-  return (0);
+  return (EXIT_SUCCESS);
 }

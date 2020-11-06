@@ -1,4 +1,4 @@
-/* Copyright 2012,2014,2015 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2012,2014,2015,2018 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -35,11 +35,11 @@
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
 /**                                                        **/
-/**   FUNCTION   : This module tests the sequential        **/
-/**                strategy building routines.             **/
+/**   FUNCTION   : This module tests the thread            **/
+/**                management module.                      **/
 /**                                                        **/
 /**   DATES      : # Version 6.0  : from : 04 nov 2012     **/
-/**                                 to     01 mar 2015     **/
+/**                                 to   : 10 jul 2018     **/
 /**                                                        **/
 /************************************************************/
 
@@ -121,7 +121,6 @@ testThreads (
 TestThread * restrict   thrdptr)
 {
   TestThreadGroup * restrict const  grouptr = (TestThreadGroup *) (thrdptr->thrddat.grouptr);
-  const int                         thrdnbr = grouptr->thrddat.thrdnbr;
   const int                         thrdnum = thrdptr->thrddat.thrdnum;
   int                               o;
 
@@ -174,8 +173,8 @@ main (
 int                 argc,
 char *              argv[])
 {
-  TestThreadGroup       groudat;
 #if ((defined COMMON_PTHREAD) || (defined SCOTCH_PTHREAD))
+  TestThreadGroup       groudat;
   TestThread * restrict thrdtab;
   int                   thrdnbr;
 #endif /* ((defined COMMON_PTHREAD) || (defined SCOTCH_PTHREAD)) */
@@ -188,14 +187,14 @@ char *              argv[])
   groudat.redusum = COMPVAL (thrdnbr);
 
   if ((thrdtab = malloc (thrdnbr * sizeof (TestThread))) == NULL) {
-    errorPrint ("main: out of memory");
-    return     (1);
+    SCOTCH_errorPrint ("main: out of memory");
+    exit (EXIT_FAILURE);
   }
 
   if (threadLaunch (&groudat, thrdtab, sizeof (TestThread), (ThreadLaunchStartFunc) testThreads, (ThreadLaunchJoinFunc) NULL,
                     thrdnbr, THREADCANBARRIER | THREADCANREDUCE | THREADCANSCAN) != 0) {
-    errorPrint ("main: cannot launch or run threads");
-    return     (1);
+    SCOTCH_errorPrint ("main: cannot launch or run threads");
+    exit (EXIT_FAILURE);
   }
 
   free (thrdtab);
@@ -203,5 +202,5 @@ char *              argv[])
   printf ("Scotch not compiled with either COMMON_PTHREAD or SCOTCH_PTHREAD\n");
 #endif /* ((defined COMMON_PTHREAD) || (defined SCOTCH_PTHREAD)) */
 
-  return (0);
+  exit (EXIT_SUCCESS);
 }
