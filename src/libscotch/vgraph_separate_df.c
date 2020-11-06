@@ -1,4 +1,4 @@
-/* Copyright 2007,2013 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2007,2013,2018 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -47,9 +47,9 @@
 /**                  anchor of part 1.                     **/
 /**                                                        **/
 /**   DATES      : # Version 5.1  : from : 29 oct 2007     **/
-/**                                 to     24 may 2008     **/
+/**                                 to   : 24 may 2008     **/
 /**                # Version 6.0  : from : 24 dec 2013     **/
-/**                                 to     24 dec 2013     **/
+/**                                 to   : 31 may 2018     **/
 /**                                                        **/
 /************************************************************/
 
@@ -151,7 +151,7 @@ const VgraphSeparateDfParam * const paraptr)      /*+ Method parameters +*/
     Gnum                  compload0;
     Gnum                  compload1;
     int                   rootval;                /* Root part for separator vertices */
-    
+   
     compload0  = compload0avg - grafptr->compload[2] / 2;
     compload1  = grafptr->s.velosum - compload0avg - (grafptr->compload[2] + 1) / 2;
     vanctab[0] = (float) (- compload0);           /* Values to be injected to anchor vertices at every iteration  */
@@ -173,9 +173,7 @@ const VgraphSeparateDfParam * const paraptr)      /*+ Method parameters +*/
     for (movenum = 0; movenum < paraptr->movenbr; movenum ++) { /* For all moves */
       Gnum                vertnum;
       Gnum                vertnnd;
-      float               vancval;                /* Value to load vertex with if anchor */
 
-      vancval = 0.0F;                             /* At first vertices are not anchors */
       vertnum = grafptr->s.baseval;
       vertnnd = grafptr->s.vertnnd - 2;
       while (1) {
@@ -216,8 +214,7 @@ const VgraphSeparateDfParam * const paraptr)      /*+ Method parameters +*/
         if (vertnum == grafptr->s.vertnnd)        /* If all vertices processed, exit intermediate infinite loop */
           break;
 
-        vertnnd ++;                               /* Prepare to go only for one more run        */
-        vancval = vanctab[vertnum - grafptr->s.vertnnd + 2]; /* Load variable with anchor value */
+        vertnnd ++;                               /* Prepare to go only for one more run */
       }
 
       difttax = difntax;                          /* Swap old and new diffusion arrays */

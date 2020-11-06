@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010,2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010,2011,2014,2019 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -41,19 +41,19 @@
 /**                for the main routine.                   **/
 /**                                                        **/
 /**   DATES      : # Version 0.0  : from : 05 jan 1993     **/
-/**                                 to     12 may 1993     **/
+/**                                 to   : 12 may 1993     **/
 /**                # Version 1.3  : from : 09 apr 1994     **/
-/**                                 to     30 apr 1994     **/
+/**                                 to   : 30 apr 1994     **/
 /**                # Version 2.0  : from : 06 jun 1994     **/
-/**                                 to     08 nov 1994     **/
+/**                                 to   : 08 nov 1994     **/
 /**                # Version 2.1  : from : 07 apr 1995     **/
-/**                                 to     09 jun 1995     **/
+/**                                 to   : 09 jun 1995     **/
 /**                # Version 3.0  : from : 01 jul 1995     **/
-/**                                 to     15 aug 1995     **/
+/**                                 to   : 15 aug 1995     **/
 /**                # Version 3.1  : from : 07 nov 1995     **/
-/**                                 to     10 nov 1995     **/
+/**                                 to   : 10 nov 1995     **/
 /**                # Version 3.2  : from : 04 oct 1996     **/
-/**                                 to     18 jul 1997     **/
+/**                                 to   : 18 jul 1997     **/
 /**                # Version 3.3  : from : 07 oct 1998     **/
 /**                                 to   : 31 may 1999     **/
 /**                # Version 4.0  : from : 16 jan 2004     **/
@@ -63,7 +63,7 @@
 /**                # Version 5.1  : from : 28 aug 2010     **/
 /**                                 to   : 18 jul 2011     **/
 /**                # Version 6.0  : from : 29 may 2010     **/
-/**                                 to   : 12 nov 2014     **/
+/**                                 to   : 24 sep 2019     **/
 /**                                                        **/
 /************************************************************/
 
@@ -105,21 +105,3 @@
 #define C_FLAGRMAPOLD               0x0100        /* Old mapping file           */
 #define C_FLAGRMAPRAT               0x0200        /* Edge migration ratio       */
 #define C_FLAGRMAPCST               0x0400        /* Vertex migration cost file */
-
-/*
-**  The type and structure definitions.
-*/
-
-/*+ This structure stores part lists. +*/
-
-typedef struct C_PartList_ {
-  SCOTCH_Num                vertnum;              /*+ Number of vertex of which part is neighbor +*/
-  SCOTCH_Num                nextidx;              /*+ Pointer to index of next recorded neighbor +*/
-} C_PartList;
-
-/*
-**  The function prototypes.
-*/
-
-void                        C_partSave          (SCOTCH_Graph * restrict const, SCOTCH_Num * restrict const, FILE * const);
-void                        C_partViewOvl       (SCOTCH_Graph * restrict const, SCOTCH_Num * restrict const, FILE * const);

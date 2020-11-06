@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014,2018-2020 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -40,21 +40,21 @@
 /**                This module contains the main function. **/
 /**                                                        **/
 /**   DATES      : # Version 0.0  : from : 05 jan 1993     **/
-/**                                 to     12 may 1993     **/
+/**                                 to   : 12 may 1993     **/
 /**                # Version 1.1  : from : 15 oct 1993     **/
-/**                                 to     15 oct 1993     **/
+/**                                 to   : 15 oct 1993     **/
 /**                # Version 1.3  : from : 06 apr 1994     **/
-/**                                 to     18 may 1994     **/
+/**                                 to   : 18 may 1994     **/
 /**                # Version 2.0  : from : 06 jun 1994     **/
-/**                                 to     17 nov 1994     **/
+/**                                 to   : 17 nov 1994     **/
 /**                # Version 2.1  : from : 07 apr 1995     **/
-/**                                 to     18 jun 1995     **/
+/**                                 to   : 18 jun 1995     **/
 /**                # Version 3.0  : from : 01 jul 1995     **/
-/**                                 to     02 oct 1995     **/
+/**                                 to   : 02 oct 1995     **/
 /**                # Version 3.1  : from : 07 nov 1995     **/
-/**                                 to     25 apr 1996     **/
+/**                                 to   : 25 apr 1996     **/
 /**                # Version 3.2  : from : 24 sep 1996     **/
-/**                                 to     26 may 1998     **/
+/**                                 to   : 26 may 1998     **/
 /**                # Version 3.3  : from : 19 oct 1998     **/
 /**                                 to   : 30 mar 1999     **/
 /**                # Version 3.4  : from : 03 feb 2000     **/
@@ -66,7 +66,7 @@
 /**                # Version 5.1  : from : 30 jun 2010     **/
 /**                                 to   : 31 aug 2011     **/
 /**                # Version 6.0  : from : 29 may 2010     **/
-/**                                 to   : 12 nov 2014     **/
+/**                                 to   : 26 aug 2020     **/
 /**                                                        **/
 /************************************************************/
 
@@ -91,13 +91,13 @@ static int                  C_paraNbr = 0;        /* No parameters for mapping  
 static int                  C_fileNum = 0;        /* Number of file in arg list             */
 static int                  C_fileNbr = 4;        /* Number of files for mapping            */
 static File                 C_fileTab[C_FILENBR] = { /* File array                          */
-                              { "r" },
-                              { "r" },
-                              { "w" },
-                              { "w" },
-                              { "r" },
-                              { "r" },
-                              { "r" } };
+                              { FILEMODER },
+                              { FILEMODER },
+                              { FILEMODEW },
+                              { FILEMODEW },
+                              { FILEMODER },
+                              { FILEMODER },
+                              { FILEMODEW } };
 
 static const char *         C_usageList[] = {     /* Usage */
   "gmap [<input source file> [<input target file> [<output mapping file> [<output log file>]]]] <options>",
@@ -117,7 +117,7 @@ static const char *         C_usageList[] = {     /* Usage */
   "  -q<pwght>  : Do graph clustering instead of static mapping (for gmap)",
   "  -ro<file>  : Old mapping input file (for remapping)",
   "  -rr<val>   : Edge migration ratio (for remapping, default: 1)",
-  "  -rv<file>  : Vertex migration cost input file (for remapping)", 
+  "  -rv<file>  : Vertex migration cost input file (for remapping)",
   "  -s<obj>    : Force unity weights on <obj>:",
   "                 e  : edges",
   "                 v  : vertices",
@@ -129,8 +129,6 @@ static const char *         C_usageList[] = {     /* Usage */
   "",
   "See default strategy with option '-vs'",
   NULL };
-
-static const SCOTCH_Num     C_loadOne = 1;
 
 /******************************/
 /*                            */
@@ -179,7 +177,7 @@ char *                      argv[])
 
   if ((argc >= 2) && (argv[1][0] == '?')) {       /* If need for help */
     usagePrint (stdout, C_usageList);
-    return     (0);
+    return     (EXIT_SUCCESS);
   }
 
   grafflag = 0;                                   /* Use vertex and edge weights  */
@@ -250,7 +248,7 @@ char *                      argv[])
         case 'H' :                                /* Give the usage message */
         case 'h' :
           usagePrint (stdout, C_usageList);
-          return     (0);
+          return     (EXIT_SUCCESS);
         case 'M' :
         case 'm' :
           straptr = &argv[i][2];
@@ -285,7 +283,7 @@ char *                      argv[])
             case 'r' :                            /* Edge migration ratio */
               flagval |= C_FLAGRMAPRAT;
               emraval = atof (&argv[i][3]);
-              if (emraval <= 0.0) 
+              if (emraval <= 0.0)
                 errorPrint ("main: invalid edge migration ratio");
               break;
             case 'V' :
@@ -316,9 +314,9 @@ char *                      argv[])
           break;
         case 'V' :
           fprintf (stderr, "gmap/gpart, version " SCOTCH_VERSION_STRING "\n");
-          fprintf (stderr, "Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS, France\n");
-          fprintf (stderr, "This software is libre/free software under CeCILL-C -- see the user's manual for more information\n");
-          return  (0);
+          fprintf (stderr, SCOTCH_COPYRIGHT_STRING "\n");
+          fprintf (stderr, SCOTCH_LICENSE_STRING "\n");
+          return  (EXIT_SUCCESS);
         case 'v' :                                /* Output control info */
           for (j = 2; argv[i][j] != '\0'; j ++) {
             switch (argv[i][j]) {
@@ -428,13 +426,16 @@ char *                      argv[])
   clockInit  (&runtime[1]);
   clockStart (&runtime[1]);
 
-  if ((flagval & C_FLAGPARTOVL) != 0) {           /* If overlap partitioning wanted               */
+  if ((flagval & C_FLAGPARTOVL) != 0) {           /* If overlap partitioning wanted              */
+    if (straptr != NULL)                          /* Set overlap partitioning strategy if needed */
+      SCOTCH_stratGraphPartOvl (&stradat, straptr);
+
     SCOTCH_graphPartOvl (&grafdat, C_partNbr, &stradat, parttab); /* Perform overlap partitioning */
 
     clockStop  (&runtime[1]);                     /* Get computation time */
     clockStart (&runtime[0]);
 
-    C_partSave (&grafdat, parttab, C_filepntrmapout); /* Write partitioning */
+    SCOTCH_graphTabSave (&grafdat, parttab, C_filepntrmapout); /* Write partitioning */
   }
   else {                                          /* Regular partitioning / mapping / clustering wanted */
     if (straptr != NULL)                          /* Set static mapping strategy if needed              */
@@ -477,7 +478,7 @@ char *                      argv[])
   }
   if ((flagval & C_FLAGPARTOVL) != 0) {           /* If overlap partitioning wanted */
     if (flagval & C_FLAGVERBMAP)
-      C_partViewOvl (&grafdat, parttab, C_filepntrlogout);
+      SCOTCH_graphPartOvlView (&grafdat, C_partNbr, parttab, C_filepntrlogout);
   }
   else {                                          /* Regular partitioning / mapping wanted */
     if (flagval & C_FLAGVERBMAP) {
@@ -492,7 +493,7 @@ char *                      argv[])
       SCOTCH_graphMapExit (&grafdat, &mapodat);
       if ((flagval & C_FLAGRMAPCST) != 0)
         memFree (vmlotab);
-    } 
+    }
   }
 
   fileBlockClose (C_fileTab, C_FILENBR);          /* Always close explicitely to end eventual (un)compression tasks */
@@ -503,187 +504,5 @@ char *                      argv[])
 
   memFree (parttab);                              /* Free hand-made partition array */
 
-#ifdef COMMON_PTHREAD
-  pthread_exit ((void *) 0);                      /* Allow potential (un)compression tasks to complete */
-#endif /* COMMON_PTHREAD */
-  return (0);
-}
-
-/* This routine writes a partition to
-** the given stream.
-** It returns :
-** - void  : in case of success
-** - exit  : on error (because of errorPrint)
-*/
-
-void
-C_partSave (
-SCOTCH_Graph * restrict const grafptr,
-SCOTCH_Num * restrict const   parttab,
-FILE * const                  stream)
-{
-  SCOTCH_Num                  baseval;
-  const SCOTCH_Num * restrict parttax;
-  SCOTCH_Num *                vlbltab;
-  const SCOTCH_Num * restrict vlbltax;
-  SCOTCH_Num                  vertnbr;
-  SCOTCH_Num                  vertnum;
-
-  SCOTCH_graphData (grafptr, &baseval, &vertnbr, NULL, NULL, NULL, &vlbltab, NULL, NULL, NULL);
-
-  parttax = parttab - baseval;
-  vlbltax = (vlbltab != NULL) ? (vlbltab - baseval) : NULL;
-
-  if (fprintf (stream, SCOTCH_NUMSTRING "\n", (SCOTCH_Num) vertnbr) == EOF)
-    errorPrint ("C_partSave: bad output (1)");
-
-  for (vertnum = baseval; vertnum < (vertnbr + baseval); vertnum ++) {
-    if (fprintf (stream, SCOTCH_NUMSTRING "\t" SCOTCH_NUMSTRING "\n",
-                 (SCOTCH_Num) ((vlbltax != NULL) ? vlbltax[vertnum] : vertnum),
-                 (SCOTCH_Num) parttax[vertnum]) == EOF) {
-      errorPrint ("C_mapSave: bad output (2)");
-    }
-  }
-}
-
-/* This routine writes the characteristics
-** of the given overlap partition to the
-** given stream.
-** It returns :
-** - void  : in case of success
-** - exit  : on error (because of errorPrint)
-*/
-
-void
-C_partViewOvl (
-SCOTCH_Graph * restrict const grafptr,
-SCOTCH_Num * restrict const   parttab,
-FILE * const                  stream)
-{
-  SCOTCH_Num                  baseval;
-  SCOTCH_Num                  vertnbr;
-  SCOTCH_Num                  vertnum;
-  SCOTCH_Num *                verttab;
-  const SCOTCH_Num * restrict verttax;
-  SCOTCH_Num *                vendtab;
-  const SCOTCH_Num * restrict vendtax;
-  SCOTCH_Num *                velotab;
-  SCOTCH_Num                  velomsk;
-  const SCOTCH_Num * restrict velobax;              /* Data for handling of optional arrays */
-  SCOTCH_Num *                edgetab;
-  const SCOTCH_Num * restrict edgetax;
-  const SCOTCH_Num * restrict parttax;
-  SCOTCH_Num                  partnum;
-  C_PartList * restrict       listtab;
-  SCOTCH_Num                  fronnbr;
-  SCOTCH_Num                  fronload;
-  SCOTCH_Num * restrict       compload;
-  SCOTCH_Num * restrict       compsize;
-  SCOTCH_Num                  comploadsum;
-  SCOTCH_Num                  comploadmax;
-  SCOTCH_Num                  comploadmin;
-  double                      comploadavg;
-
-  if (memAllocGroup ((void **) (void *)
-                     &compload, (size_t) (C_partNbr * sizeof (SCOTCH_Num)),
-                     &compsize, (size_t) (C_partNbr * sizeof (SCOTCH_Num)),
-                     &listtab,  (size_t) ((C_partNbr + 1) * sizeof (C_PartList)), NULL) == NULL) {
-    errorPrint ("C_partViewOvl: out of memory");
-  }
-  listtab ++;                                     /* TRICK: Trim array so that listtab[-1] is valid */
-  memSet (listtab, ~0, C_partNbr * sizeof (C_PartList)); /* Set vertex indices to ~0                */
-  memSet (compload, 0, C_partNbr * sizeof (SCOTCH_Num));
-  memSet (compsize, 0, C_partNbr * sizeof (SCOTCH_Num));
-
-  SCOTCH_graphData (grafptr, &baseval,
-                    &vertnbr, &verttab, &vendtab, &velotab, NULL,
-                    NULL, &edgetab, NULL);
-
-  if (velotab == NULL) {                          /* Set accesses to optional arrays             */
-    velobax = &C_loadOne;                         /* In case vertices not weighted (least often) */
-    velomsk = 0;
-  }
-  else {
-    velobax = velotab - baseval;
-    velomsk = ~((SCOTCH_Num) 0);
-  }
-  verttax = verttab - baseval;
-  vendtax = vendtab - baseval;
-  edgetax = edgetab - baseval;
-  parttax = parttab - baseval;
-
-  fronnbr  =
-  fronload = 0;
-  for (vertnum = baseval; vertnum < (vertnbr + baseval); vertnum ++) {
-    SCOTCH_Num          partval;
-
-    partval = parttax[vertnum];
-    if (partval >= 0) {
-      compload[partval] += velobax[vertnum & velomsk];
-      compsize[partval] ++;
-    }
-    else {                                        /* Vertex is in separator       */
-      SCOTCH_Num          listidx;                /* Index of first neighbor part */
-      SCOTCH_Num          edgenum;
-      SCOTCH_Num          veloval;
-
-      fronnbr  ++;                                /* Add vertex to frontier */
-      fronload += velobax[vertnum & velomsk];
-
-      listidx = -1;                               /* No neighboring parts recorded yet          */
-      listtab[-1].vertnum = vertnum;              /* Separator neighbors will not be considered */
-      for (edgenum = verttax[vertnum];
-           edgenum < vendtax[vertnum]; edgenum ++) { /* Compute gain */
-        SCOTCH_Num          vertend;
-        SCOTCH_Num          partend;
-
-        vertend = edgetax[edgenum];
-        partend = parttax[vertend];
-        if (listtab[partend].vertnum != vertnum) { /* If part not yet considered  */
-          listtab[partend].vertnum = vertnum;     /* Link it in list of neighbors */
-          listtab[partend].nextidx = listidx;
-          listidx = partend;
-        }
-      }
-
-      veloval = velobax[vertnum & velomsk];
-
-      while (listidx != -1) {                     /* For all neighboring parts found      */
-        compload[listidx] += veloval;             /* Add load of separator vertex to part */
-        compsize[listidx] ++;
-        listidx = listtab[listidx].nextidx;
-      }
-    }
-  }
-
-  comploadsum = 0;
-  for (partnum = 0; partnum < C_partNbr; partnum ++)
-    comploadsum += compload[partnum];
-
-  comploadmax = 0;
-  comploadmin = comploadsum;
-  for (partnum = 0; partnum < C_partNbr; partnum ++) {
-    if (compload[partnum] > comploadmax)
-      comploadmax = compload[partnum];
-    if (compload[partnum] < comploadmin)
-      comploadmin = compload[partnum];
-  }
-  comploadavg = (double) comploadsum / (double) C_partNbr;
-  fprintf (stream, "P\tsep=" SCOTCH_NUMSTRING "\n",
-	   (SCOTCH_Num) fronload);
-  fprintf (stream, "P\tmin=" SCOTCH_NUMSTRING "\tmax=" SCOTCH_NUMSTRING "\tavg=%g\n",
-	   (SCOTCH_Num) comploadmin,
-           (SCOTCH_Num) comploadmax,
-           (double) comploadavg);
-#if 0 /* TODO REMOVE */
-  for (partnum = 0; partnum < C_partNbr; partnum ++)
-    fprintf (stream, "P\tload[" SCOTCH_NUMSTRING "]=" SCOTCH_NUMSTRING "\n",
-             (SCOTCH_Num) partnum,
-             (SCOTCH_Num) compload[partnum]);
-#endif
-  fprintf (stream, "P\tmaxavg=%g\tminavg=%g\n",
-           ((double) comploadmax / comploadavg),
-           ((double) comploadmin / comploadavg));
-
-  memFree (compload);
+  return (EXIT_SUCCESS);
 }

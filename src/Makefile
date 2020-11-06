@@ -1,4 +1,4 @@
-## Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+## Copyright 2004,2007,2008,2010-2012,2014,2018-2020 IPB, Universite de Bordeaux, INRIA & CNRS
 ##
 ## This file is part of the Scotch software package for static mapping,
 ## graph partitioning and sparse matrix ordering.
@@ -31,8 +31,8 @@
 ##
 
 VERSION	= 6
-RELEASE = 0
-PATCHLEVEL = 4
+RELEASE = 1
+PATCHLEVEL = 0
 
 .PHONY				:	clean	default	install	ptscotch	realclean	required	scotch
 
@@ -58,6 +58,8 @@ include Makefile.inc
 prefix		?= /usr/local
 bindir		?= $(prefix)/bin
 includedir	?= $(prefix)/include
+includestub     ?= include_stub
+includestubdir	?= $(prefix)/$(includestub)
 libdir		?= $(prefix)/lib
 datarootdir	?= $(prefix)/share
 mandir		?= $(datarootdir)/man
@@ -79,6 +81,7 @@ $(datarootdir)			:
 
 $(includedir)			:
 					-$(MKDIR) $(includedir)
+					-$(MKDIR) $(includestubdir)
 
 $(libdir)			:
 					-$(MKDIR) $(libdir)
@@ -89,34 +92,52 @@ $(mandir)			:	$(datarootdir)
 $(mandir)/man1			:	$(mandir)
 					-$(MKDIR) $(mandir)/man1
 
-scotch				:	required
+libscotch			:	required
 					(cd libscotch ;      $(MAKE) VERSION=$(VERSION) RELEASE=$(RELEASE) PATCHLEVEL=$(PATCHLEVEL) scotch && $(MAKE) install)
+
+scotch				:	libscotch
 					(cd scotch ;         $(MAKE) VERSION=$(VERSION) RELEASE=$(RELEASE) PATCHLEVEL=$(PATCHLEVEL) scotch && $(MAKE) install)
 					(cd libscotchmetis ; $(MAKE)                                                                scotch && $(MAKE) install)
 
-ptscotch			:	required
+libptscotch			:	libscotch
 					(cd libscotch ;      $(MAKE) VERSION=$(VERSION) RELEASE=$(RELEASE) PATCHLEVEL=$(PATCHLEVEL) ptscotch && $(MAKE) ptinstall)
+
+ptscotch			:	libptscotch
 					(cd scotch ;         $(MAKE) VERSION=$(VERSION) RELEASE=$(RELEASE) PATCHLEVEL=$(PATCHLEVEL) ptscotch && $(MAKE) ptinstall)
 					(cd libscotchmetis ; $(MAKE)                                                                ptscotch && $(MAKE) ptinstall)
 
 check				:	scotch
 					(cd check ; $(MAKE) check)
 
+check_full			:	scotch
+					(cd check ; $(MAKE) check_full)
+
 ptcheck				:	ptscotch
 					(cd check ; $(MAKE) ptcheck)
+
+ptcheck_full			:	ptscotch
+					(cd check ; $(MAKE) ptcheck_full)
 
 esmumps				:	scotch
 					(cd esmumps ; $(MAKE) scotch && $(MAKE) install)
 
-ptesmumps			:	ptscotch
+escheck				:	esmumps
+					(cd check ; $(MAKE) escheck)
+
+ptesmumps			:	scotch	ptscotch
 					(cd esmumps ; $(MAKE) ptscotch && $(MAKE) ptinstall)
 
 install				:	required	$(bindir)	$(includedir)	$(libdir)	$(mandir)/man1
 					-$(CP) -f ../bin/[agm]*$(EXE) $(bindir)
 					-$(CP) -f ../bin/d[agm]*$(EXE) $(bindir)
+					-$(CP) -f ../include/*esmumps*.h $(includedir)
 					-$(CP) -f ../include/*scotch*.h $(includedir)
+					-$(CP) -f ../lib/*esmumps*$(LIB) $(libdir)
 					-$(CP) -f ../lib/*scotch*$(LIB) $(libdir)
-					-$(CP) -Rf ../man/* $(mandir)
+					-$(CP) -f ../man/man1/*[.]1 $(mandir)/man1
+
+installstub			:	required	$(includedir)
+					-$(CP) -f ../include/*metis*.h $(includestubdir)
 
 clean				:	required
 					(cd libscotch ;      $(MAKE) clean)

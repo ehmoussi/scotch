@@ -1,4 +1,4 @@
-/* Copyright 2011,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2011,2014,2018 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -40,7 +40,7 @@
 /**                routine.                                **/
 /**                                                        **/
 /**   DATES      : # Version 6.0  : from : 20 sep 2014     **/
-/**                                 to     20 sep 2014     **/
+/**                                 to   : 22 may 2018     **/
 /**                                                        **/
 /************************************************************/
 
@@ -92,39 +92,39 @@ char *              argv[])
   SCOTCH_errorProg (argv[0]);
 
   if ((argc < 4) || (argc > 5)) {
-    SCOTCH_errorPrint ("main: usage is \"%s <nparts> <input source graph file> <output mapping file> [<strategy>]\"\n", argv[0]);
-    exit              (1);
+    SCOTCH_errorPrint ("usage: %s nparts input_source_graph_file output_mapping_file [strategy]", argv[0]);
+    exit (EXIT_FAILURE);
   }
 
   if ((partnbr = (SCOTCH_Num) atoi (argv[1])) < 1) {
     SCOTCH_errorPrint ("main: invalid number of parts (\"%s\")", argv[1]);
-    return            (1);
+    exit (EXIT_FAILURE);
   }
 
   if (SCOTCH_stratInit (&stradat) != 0) {
     SCOTCH_errorPrint ("main: cannot initialize strategy");
-    return            (1);
+    exit (EXIT_FAILURE);
   }
   if (argc == 5) {
     if (SCOTCH_stratGraphPartOvl (&stradat, argv[4]) != 0) {
       SCOTCH_errorPrint ("main: invalid user-provided strategy");
-      return            (1);
+      exit (EXIT_FAILURE);
     }
   }
 
   if (SCOTCH_graphInit (&grafdat) != 0) {
     SCOTCH_errorPrint ("main: cannot initialize graph");
-    return            (1);
+    exit (EXIT_FAILURE);
   }
 
   if ((fileptr = fopen (argv[2], "r")) == NULL) {
     SCOTCH_errorPrint ("main: cannot open file (1)");
-    return            (1);
+    exit (EXIT_FAILURE);
   }
 
   if (SCOTCH_graphLoad (&grafdat, fileptr, -1, 0) != 0) {
     SCOTCH_errorPrint ("main: cannot load graph");
-    return            (1);
+    exit (EXIT_FAILURE);
   }
 
   fclose (fileptr);
@@ -135,12 +135,12 @@ char *              argv[])
       ((flagtab = malloc (partnbr * sizeof (SCOTCH_Num))) == NULL) ||
       ((loadtab = malloc (partnbr * sizeof (SCOTCH_Num))) == NULL)) {
     SCOTCH_errorPrint ("main: out of memory");
-    return            (1);
+    exit (EXIT_FAILURE);
   }
 
   if (SCOTCH_graphPartOvl (&grafdat, partnbr, &stradat, parttax) != 0) { /* Parttax is not based yet */
     SCOTCH_errorPrint ("main: cannot compute mapping");
-    return            (1);
+    exit (EXIT_FAILURE);
   }
 
   edgetax -= baseval;
@@ -200,12 +200,12 @@ char *              argv[])
 
   if ((fileptr = fopen (argv[3], "w")) == NULL) {
     SCOTCH_errorPrint ("main: cannot open file (2)");
-    return            (1);
+    exit (EXIT_FAILURE);
   }
 
   if (fprintf (fileptr, "%ld\n", (long) vertnbr) == EOF) {
     SCOTCH_errorPrint ("main: bad output (1)");
-    return            (1);
+    exit (EXIT_FAILURE);
   }
 
   for (vertnum = 0; vertnum < vertnbr; vertnum ++) {
@@ -213,7 +213,7 @@ char *              argv[])
                  (long) ((vlbltab == NULL) ? vertnum : vlbltab[vertnum]),
                  (long) parttax[vertnum + baseval]) == EOF) {
       SCOTCH_errorPrint ("main: bad output (2)");
-      return            (1);
+      exit (EXIT_FAILURE);
     }
   }
 
@@ -226,5 +226,5 @@ char *              argv[])
   SCOTCH_stratExit (&stradat);
   SCOTCH_graphExit (&grafdat);
 
-  exit (0);
+  exit (EXIT_SUCCESS);
 }

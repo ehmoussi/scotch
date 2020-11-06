@@ -1,4 +1,4 @@
-/* Copyright 2004,2007,2008,2010-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2004,2007,2008,2010-2012,2014-2019 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -40,29 +40,29 @@
 /**                for the source graph functions.         **/
 /**                                                        **/
 /**   DATES      : # Version 0.0  : from : 02 dec 1992     **/
-/**                                 to     18 may 1993     **/
+/**                                 to   : 18 may 1993     **/
 /**                # Version 1.3  : from : 30 apr 1994     **/
-/**                                 to     18 may 1994     **/
+/**                                 to   : 18 may 1994     **/
 /**                # Version 2.0  : from : 06 jun 1994     **/
-/**                                 to     18 aug 1994     **/
+/**                                 to   : 18 aug 1994     **/
 /**                # Version 3.0  : from : 07 jul 1995     **/
-/**                                 to     28 sep 1995     **/
+/**                                 to   : 28 sep 1995     **/
 /**                # Version 3.1  : from : 28 nov 1995     **/
-/**                                 to     28 nov 1995     **/
+/**                                 to   : 28 nov 1995     **/
 /**                # Version 3.2  : from : 07 sep 1996     **/
-/**                                 to     15 sep 1998     **/
+/**                                 to   : 15 sep 1998     **/
 /**                # Version 3.3  : from : 28 sep 1998     **/
-/**                                 to     23 mar 1999     **/
+/**                                 to   : 23 mar 1999     **/
 /**                # Version 3.4  : from : 20 mar 2000     **/
-/**                                 to     20 mar 2000     **/
+/**                                 to   : 20 mar 2000     **/
 /**                # Version 4.0  : from : 24 nov 2001     **/
-/**                                 to     03 mar 2006     **/
+/**                                 to   : 03 mar 2006     **/
 /**                # Version 5.0  : from : 03 mar 2006     **/
-/**                                 to     01 jun 2008     **/
+/**                                 to   : 01 jun 2008     **/
 /**                # Version 5.1  : from : 11 aug 2010     **/
-/**                                 to     04 nov 2010     **/
+/**                                 to   : 04 nov 2010     **/
 /**                # Version 6.0  : from : 03 mar 2011     **/
-/**                                 to     09 aug 2014     **/
+/**                                 to   : 10 may 2019     **/
 /**                                                        **/
 /************************************************************/
 
@@ -74,30 +74,31 @@
 
 /*+ Graph option flags. +*/
 
-#define GRAPHNONE                   0x0000        /* No options set */
+#define GRAPHNONE                   0x0000        /*+ No options set +*/
 
-#define GRAPHFREEEDGE               0x0001        /* Free edgetab array        */
-#define GRAPHFREEVERT               0x0002        /* Free verttab array        */
-#define GRAPHFREEVNUM               0x0004        /* Free vnumtab array        */
-#define GRAPHFREEOTHR               0x0008        /* Free all other arrays     */
-#define GRAPHFREETABS               0x000F        /* Free all graph arrays     */
-#define GRAPHVERTGROUP              0x0010        /* All vertex arrays grouped */
-#define GRAPHEDGEGROUP              0x0020        /* All edge arrays grouped   */
+#define GRAPHFREEEDGE               0x0001        /*+ Free edgetab array        +*/
+#define GRAPHFREEVERT               0x0002        /*+ Free verttab array        +*/
+#define GRAPHFREEVNUM               0x0004        /*+ Free vnumtab array        +*/
+#define GRAPHFREEOTHR               0x0008        /*+ Free all other arrays     +*/
+#define GRAPHFREETABS               0x000F        /*+ Free all graph arrays     +*/
+#define GRAPHVERTGROUP              0x0010        /*+ All vertex arrays grouped +*/
+#define GRAPHEDGEGROUP              0x0020        /*+ All edge arrays grouped   +*/
 
-#define GRAPHBITSUSED               0x003F        /* Significant bits for plain graph routines               */
-#define GRAPHBITSNOTUSED            0x0040        /* Value above which bits not used by plain graph routines */
+#define GRAPHBITSUSED               0x003F        /*+ Significant bits for plain graph routines               +*/
+#define GRAPHBITSNOTUSED            0x0040        /*+ Value above which bits not used by plain graph routines +*/
 
-#define GRAPHIONOLOADVERT           1             /* Remove vertex loads on loading */
-#define GRAPHIONOLOADEDGE           2             /* Remove edge loads on loading   */
+#define GRAPHIONOLOADVERT           1             /*+ Remove vertex loads on loading +*/
+#define GRAPHIONOLOADEDGE           2             /*+ Remove edge loads on loading   +*/
 
 /*
 **  The type and structure definitions.
 */
 
 #ifndef GNUMMAX                                   /* If dgraph.h not included    */
-typedef INT                   Gnum;               /* Vertex and edge numbers     */
-typedef UINT                  Gunum;              /* Unsigned type of same width */
-#define GNUMMAX                     (INTVALMAX)   /* Maximum signed Gnum value   */
+typedef INT                 Gnum;                 /* Vertex and edge numbers     */
+typedef UINT                Gunum;                /* Unsigned type of same width */
+#define GNUMMAX                     INTVALMAX     /* Maximum signed Gnum value   */
+#define GNUMMIN                     (-GNUMMAX - 1) /* Minimum signed Gnum value  */
 #define GNUMSTRING                  INTSTRING     /* String to printf a Gnum     */
 #endif /* GNUMMAX */
 
@@ -122,13 +123,15 @@ typedef int GraphFlag;                            /*+ Graph property flags +*/
 
 /*+ The graph parallel context structure. +*/
 
-typedef struct GraphProc_ {
 #ifdef SCOTCH_PTSCOTCH
+
+typedef struct GraphProc_ {
   MPI_Comm                  proccomm;             /*+ Communicator used for parallel algorithm +*/
   int                       procglbnbr;           /*+ Number of processes in communicator      +*/
   int                       proclocnum;           /*+ Rank of process in current communicator  +*/
-#endif /* SCOTCH_PTSCOTCH */
 } GraphProc;
+
+#endif /* SCOTCH_PTSCOTCH */
 
 /*+ The graph structure. +*/
 
@@ -148,16 +151,12 @@ typedef struct Graph_ {
   Gnum *                    edlotax;              /*+ Edge load array (if present)              +*/
   Gnum                      edlosum;              /*+ Sum of edge (in fact arc) loads           +*/
   Gnum                      degrmax;              /*+ Maximum degree                            +*/
-  GraphProc *               procptr;              /*+ Pointer to parallel context (if any)      +*/
+  struct GraphProc_ *       procptr;              /*+ Pointer to parallel context (if any)      +*/
 } Graph;
 
 /*
 **  The function prototypes.
 */
-
-#ifndef GRAPH
-#define static
-#endif
 
 int                         listInit            (VertList *);
 void                        listExit            (VertList *);
@@ -174,8 +173,11 @@ void                        graphFree           (Graph * const);
 Gnum                        graphBase           (Graph * const, const Gnum);
 int                         graphBand           (const Graph * restrict const, const Gnum, Gnum * restrict const, const Gnum, Gnum * restrict * restrict const, Gnum * restrict const, Gnum * restrict const, Gnum * restrict const, const Gnum * restrict const, Gnum * restrict const);
 int                         graphCheck          (const Graph *);
-int                         graphInduceList     (const Graph * const, const VertList * const, Graph * const);
-int                         graphInducePart     (const Graph * const, const GraphPart *, const Gnum, const GraphPart, Graph * const);
+int                         graphClone          (const Graph *, Graph *);
+Gnum                        graphDiamPV         (const Graph * const);
+Gnum                        graphIelo           (const Graph * const, Gnum * const, Gnum * const);
+int                         graphInduceList     (const Graph * restrict const, const Gnum, const Gnum * restrict const, Graph * restrict const);
+int                         graphInducePart     (const Graph * restrict const, const GraphPart * restrict const, const Gnum, const GraphPart, Graph * restrict const);
 int                         graphLoad           (Graph * const, FILE * const, const Gnum, const GraphFlag);
 int                         graphLoad2          (const Gnum, const Gnum, const Gnum * const, const Gnum * const, Gnum * restrict const, const Gnum, const Gnum * const);
 int                         graphSave           (const Graph * const, FILE * const);
@@ -189,5 +191,3 @@ int                         graphGeomSaveMmkt   (const Graph * restrict const, c
 int                         graphGeomLoadScot   (Graph * restrict const, Geom * restrict const, FILE * const, FILE * const, const char * const);
 int                         graphGeomSaveScot   (const Graph * restrict const, const Geom * restrict const, FILE * const, FILE * const, const char * const);
 #endif /* GEOM_H */
-
-#undef static

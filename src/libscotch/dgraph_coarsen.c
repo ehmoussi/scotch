@@ -1,4 +1,4 @@
-/* Copyright 2007-2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2007-2012,2014,2018 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -47,7 +47,7 @@
 /**                # Version 5.1  : from : 23 jun 2008     **/
 /**                                 to   : 20 feb 2011     **/
 /**                # Version 6.0  : from : 11 sep 2012     **/
-/**                                 to   : 28 sep 2014     **/
+/**                                 to   : 07 jun 2018     **/
 /**                                                        **/
 /************************************************************/
 
@@ -399,7 +399,6 @@ int
 dgraphCoarsenBuild (
 DgraphCoarsenData * restrict const  coarptr)
 {
-  Gnum                          vertlocnum;
   Gnum                          vertlocadj;
   Gnum                          edgelocnbr;
   Gnum                          edlolocval;
@@ -437,6 +436,7 @@ DgraphCoarsenData * restrict const  coarptr)
   int                           cheklocval;
   int                           chekglbval;
 #ifdef SCOTCH_DEBUG_DGRAPH2
+  Gnum                          vertlocnum;
   int * restrict                ercvdbgtab;
 #endif /* SCOTCH_DEBUG_DGRAPH2 */
 
@@ -861,7 +861,7 @@ DgraphCoarsenData * restrict const  coarptr)
   coargrafptr->edgeloctax -= coargrafptr->baseval;
   coargrafptr->edloloctax  = memRealloc (coaredloloctax + coargrafptr->baseval, coargrafptr->edgelocnbr * sizeof (Gnum));
   coargrafptr->edloloctax -= coargrafptr->baseval;
- 
+
   reduloctab[0] = coargrafptr->vertlocnbr;        /* Get maximum over all processes */
   reduloctab[1] = coargrafptr->edgelocnbr;
   reduloctab[2] = coardegrlocmax;                 /* Get local maximum degree */
@@ -977,7 +977,7 @@ const int                             flagval)    /*+ Flag value                
 
   dgraphMatchExit (&matedat);
 
-  vertsndnbr = 
+  vertsndnbr =
   edgesndnbr = 0;
   for (procnum = 0; procnum < finegrafptr->procglbnbr; procnum ++) {
     vertsndnbr += matedat.c.dcntloctab[procnum].vertsndnbr;
@@ -992,7 +992,7 @@ const int                             flagval)    /*+ Flag value                
     return     (2);
   }
 
-  vertrcvnbr = 
+  vertrcvnbr =
   edgercvnbr = 0;
   coargrafptr->procdsptab[0] = finegrafptr->baseval; /* Build vertex-to-process array */
   for (procnum = 0; procnum < finegrafptr->procglbnbr; procnum ++) {
@@ -1049,12 +1049,11 @@ const int                             flagval)    /*+ Flag value                
     }
     else {                                        /* Do a duplicant-folding */
       int               loopval;
-      int               dumyval;
 
       o = dgraphFoldDup (&coargrafdat, coargrafptr, (void *) matedat.c.multloctab, (void **) (void *) &coarmultptr, coarmultype);
       loopval = intRandVal (finegrafptr->proclocnum + intRandVal (finegrafptr->proclocnum * 2 + 1) + 1);
       while (loopval --)                          /* Desynchronize pseudo-random generator across processes */
-        dumyval = intRandVal (2);
+        intRandVal (2);
     }
     dgraphExit    (&coargrafdat);                 /* Free unfolded graph */
     MPI_Type_free (&coarmultype);

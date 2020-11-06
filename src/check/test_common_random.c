@@ -1,4 +1,4 @@
-/* Copyright 2012,2014 IPB, Universite de Bordeaux, INRIA & CNRS
+/* Copyright 2012,2014,2016,2018 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,21 +25,21 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
 /************************************************************/
 /**                                                        **/
-/**   NAME       : test_common_thread.c                    **/
+/**   NAME       : test_common_random.c                    **/
 /**                                                        **/
 /**   AUTHOR     : Francois PELLEGRINI                     **/
 /**                                                        **/
-/**   FUNCTION   : This module tests the sequential        **/
-/**                strategy building routines.             **/
+/**   FUNCTION   : This module tests the random number     **/
+/**                generator module.                       **/
 /**                                                        **/
 /**   DATES      : # Version 6.0  : from : 01 oct 2014     **/
-/**                                 to     16 oct 2014     **/
+/**                                 to   : 24 aug 2019     **/
 /**                                                        **/
 /************************************************************/
 
@@ -61,6 +61,7 @@
 
 #include "../libscotch/module.h"
 #include "../libscotch/common.h"
+#include "scotch.h"
 
 #define RANDNBR                     100
 
@@ -76,20 +77,18 @@ int                 argc,
 char *              argv[])
 {
   INT *               randtab;
-  int                 randnbr;
   int                 randnum;
-  struct stat         statdat;
   FILE *              fileptr;
   int                 passnum;
 
   if (argc != 3) {
-    errorPrint ("usage: %s file passnum", argv[0]);
-    return     (1);
+    SCOTCH_errorPrint ("usage: %s state_file passnum", argv[0]);
+    exit (EXIT_FAILURE);
   }
 
   if ((randtab = malloc (RANDNBR * sizeof (INT))) == NULL) {
-    errorPrint ("main: out of memory");
-    return     (1);
+    SCOTCH_errorPrint ("main: out of memory");
+    exit (EXIT_FAILURE);
   }
 
   intRandInit ();                                 /* Initialize random generator */
@@ -102,33 +101,54 @@ char *              argv[])
   passnum = (atoi (argv[2]) == 0);                /* First pass to write file; second pass to read it */
 
   if ((fileptr = fopen (argv[1], (passnum) ? "w+" : "r")) == NULL) {
-    errorPrint ("main: cannot open file");
-    return     (1);
+    SCOTCH_errorPrint ("main: cannot open file");
+    exit (EXIT_FAILURE);
   }
 
   if (passnum) {                                  /* If first pass */
     for (randnum = 0; randnum < RANDNBR; randnum ++) {
       if (randtab[randnum] != intRandVal (INTVALMAX)) {
-        errorPrint ("main: cannot replay random sequence");
-        return     (1);
+        SCOTCH_errorPrint ("main: cannot replay random sequence");
+        exit (EXIT_FAILURE);
       }
     }
 
     if (fwrite (randtab, sizeof (INT), RANDNBR, fileptr) < RANDNBR) {
-      errorPrint ("main: cannot write to file");
-      return     (1);
+      SCOTCH_errorPrint ("main: cannot write to file (1)");
+      exit (EXIT_FAILURE);
     }
 
-    sleep (1);                                    /* Next run will not get the same time() value */
+    switch (SCOTCH_randomSave (fileptr)) {        /* Try to save random state, if enabled */
+      case 0 :
+        if (fprintf (fileptr, "#") != 1) {        /* Write separator character */
+          SCOTCH_errorPrint ("main: cannot write to file (2)");
+          exit (EXIT_FAILURE);
+        }
+
+        for (randnum = 0; randnum < RANDNBR; randnum ++)
+          randtab[randnum] = intRandVal (INTVALMAX);
+        if (fwrite (randtab, sizeof (INT), RANDNBR, fileptr) < RANDNBR) {
+          SCOTCH_errorPrint ("main: cannot write to file (3)");
+          exit (EXIT_FAILURE);
+        }
+        break;
+      case 1 :
+        printf ("Random state cannot be saved\n");
+        break;
+      default :
+        SCOTCH_errorPrint ("Could not save random state");
+        break;
+    }
+
+    sleep (2);                                    /* Next run will not get the same time() value */
   }
   else {                                          /* Second pass */
-    const char * const  bufftab = "";
     char *              charptr;
     int                 o;
 
     if (fread (randtab, sizeof (INT), RANDNBR, fileptr) < RANDNBR) {
-      errorPrint ("main: cannot read from file");
-      return     (1);
+      SCOTCH_errorPrint ("main: cannot read from file (1)");
+      exit (EXIT_FAILURE);
     }
 
     for (randnum = 0; randnum < RANDNBR; randnum ++) {
@@ -143,14 +163,50 @@ char *              argv[])
 #endif /* ((defined COMMON_DEBUG) || (defined COMMON_RANDOM_FIXED_SEED) || (defined SCOTCH_DETERMINISTIC)) */
 
     if (o) {
-      errorPrint ("main: two consecutive runs yield %s values.", charptr);
-      return     (1);
+      SCOTCH_errorPrint ("main: two consecutive runs yield %s values.", charptr);
+      exit (EXIT_FAILURE);
     }
     printf ("Two consecutive runs yield %s values.\n", charptr);
+
+    intRandReset ();                              /* Reset random seed to be sure */
+
+    switch (SCOTCH_randomLoad (fileptr)) {
+      case 0 :
+        while (1) {                               /* Discard all CR(LF) before separator character */
+          int                 c;
+
+          c = getc (fileptr);
+          if (c == '#')                           /* If separator character found */
+            break;
+          if (c == EOF) {
+            SCOTCH_errorPrint ("main: cannot read from file (2)");
+            exit (EXIT_FAILURE);
+          }
+        }
+
+        if (fread (randtab, sizeof (INT), RANDNBR, fileptr) < RANDNBR) {
+          SCOTCH_errorPrint ("main: cannot read from file (3)");
+          exit (EXIT_FAILURE);
+        }
+
+        for (randnum = 0; randnum < RANDNBR; randnum ++) {
+          if (randtab[randnum] != intRandVal (INTVALMAX)) {
+            SCOTCH_errorPrint ("main: state not properly saved/restored");
+            exit (EXIT_FAILURE);
+          }
+        }
+        break;
+      case 1 :
+        SCOTCH_errorPrint ("main: random state cannot be loaded");
+        break;
+      default :
+        SCOTCH_errorPrint ("main: could not save random state");
+        break;
+    }
   }
 
   fclose (fileptr);
   free   (randtab);
 
-  return (0);
+  exit (EXIT_SUCCESS);
 }

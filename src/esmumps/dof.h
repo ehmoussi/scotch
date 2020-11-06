@@ -1,4 +1,4 @@
-/* Copyright 2004,2007 ENSEIRB, INRIA & CNRS
+/* Copyright 2004,2007,2018 IPB, Universite de Bordeaux, INRIA & CNRS
 **
 ** This file is part of the Scotch software package for static mapping,
 ** graph partitioning and sparse matrix ordering.
@@ -8,13 +8,13 @@
 ** use, modify and/or redistribute the software under the terms of the
 ** CeCILL-C license as circulated by CEA, CNRS and INRIA at the following
 ** URL: "http://www.cecill.info".
-** 
+**
 ** As a counterpart to the access to the source code and rights to copy,
 ** modify and redistribute granted by the license, users are provided
 ** only with a limited warranty and the software's author, the holder of
 ** the economic rights, and the successive licensors have only limited
 ** liability.
-** 
+**
 ** In this respect, the user's attention is drawn to the risks associated
 ** with loading, using, modifying and/or developing or reproducing the
 ** software by the user in light of its specific status of free software,
@@ -25,7 +25,7 @@
 ** their requirements in conditions enabling the security of their
 ** systems and/or data to be ensured and, more generally, to use and
 ** operate it in the same conditions as regards security.
-** 
+**
 ** The fact that you are presently reading this means that you have had
 ** knowledge of the CeCILL-C license and that you accept its terms.
 */
@@ -43,11 +43,13 @@
 /**                for the DOF handling structure.         **/
 /**                                                        **/
 /**   DATES      : # Version 0.0  : from : 07 oct 1998     **/
-/**                                 to     16 oct 1998     **/
+/**                                 to   : 16 oct 1998     **/
 /**                # Version 1.0  : from : 06 jun 2002     **/
-/**                                 to     06 jun 2002     **/
+/**                                 to   : 06 jun 2002     **/
 /**                # Version 3.0  : from : 28 feb 2004     **/
-/**                                 to     29 feb 2004     **/
+/**                                 to   : 29 feb 2004     **/
+/**                # Version 6.0  : from : 22 may 2018     **/
+/**                                 to   : 22 may 2018     **/
 /**                                                        **/
 /************************************************************/
 
@@ -74,10 +76,6 @@ typedef struct Dof_ {
 **  The function prototypes.
 */
 
-#ifndef DOF
-#define static
-#endif
-
 int                         dofInit             (Dof * const deofptr);
 void                        dofExit             (Dof * const deofptr);
 int                         dofLoad             (Dof * const deofptr, FILE * const stream);
@@ -86,8 +84,6 @@ void                        dofConstant         (Dof * const deofptr, const INT 
 #ifdef GRAPH_H
 int                         dofGraph            (Dof * const deofptr, const Graph * grafptr, const INT, const INT * const peritab);
 #endif /* GRAPH_H */
-
-#undef static
 
 /*
 **  The macro definitions.
